@@ -1,0 +1,65 @@
+---
+name: loopback
+description: Work the Loopback feedback queue — the cross-project bus where real product usage lands as actionable items (pinned UI feedback, backend failures with captured response bodies, UX papercuts, AI-feature feedback with run metadata) and where fixes are written back so pins turn green. Use this whenever the user says "work the feedback queue", "work the loopback queue", "check loopback", "fix the reported feedback", "fix the pins", "what did users report", "triage the feedback", "file feedback", or asks in any words to act on user-reported issues, close reported bugs, or report an observation into the queue — even if they never say "Loopback". Requires the loopback_* MCP tools (or the HTTP /ingest endpoint for filing).
+---
+
+# Loopback: work the feedback queue
+
+Loopback is the feedback bus across this machine's projects. Real product
+usage — pinned UI feedback, backend failures with response bodies, UX
+papercuts, feedback on AI features with their run metadata — lands in one
+queue. Your job is to close loops: fix what real usage surfaced, and write the
+outcome back so the reporter sees the pin turn green on their page.
+
+The project slug: use the one stated in this repo's AGENTS.md ("Working the
+Loopback queue" section) or in this file if a "Project slug for this repo"
+line is present below the frontmatter. If neither exists, ask, or check
+`loopback_get_stats()` for known projects.
+
+## The loop
+
+Work one item at a time, most severe first:
+
+1. `loopback_list_feedback(project=<slug>, status="open")` — see what users
+   actually hit. Check `triaged` too if the open queue is empty.
+2. `loopback_claim_feedback(id, agent=<your name>)` — claim as your own agent
+   name: `claude-code`, `codex`, `gemini`, or your CLI's name. If the claim is
+   rejected, another agent holds it — pick a different item. Never force-claim
+   (`force=true`) without first stating why in a `loopback_add_comment`.
+3. `loopback_get_feedback(id)` — read ALL captured context before touching
+   code. A pin is an anchor, not a scope: a pin on a form button often carries
+   the backend root cause. Specifically read:
+   - `network` and `extra.failed_responses` — failing calls with up to 2KB of
+     response body (error codes, hints, stack fragments);
+   - `console` and `repro_steps`;
+   - `extra.context` — `run_id` / `model` / `trace_url` when the feedback is on
+     an AI or automation feature. Chase the trace, not just the DOM.
+4. Comment your root-cause diagnosis via `loopback_add_comment` **before**
+   fixing — it is the audit trail that makes the queue trustworthy.
+5. Fix it in the repo. Smallest change that addresses what was reported.
+6. `loopback_link_change(id, repo, branch, commit, pr_url, diff_summary)` — the
+   fix must be traceable from the feedback item.
+7. `loopback_update_status(id, status="fixed", note=...)`.
+8. Verify for real, don't assume: UI issues → drive the running app with your
+   browser tool/MCP; backend or logic → run the tests or hit the endpoint;
+   usage/metric issues → check the metric or replay.
+9. Only after verification: `loopback_resolve_feedback(id,
+   resolution="verified", note=...)`. Use `wontfix` with a reason when
+   intentionally not fixing. Resolving flips the reporter's pin green — do not
+   claim it until it is true.
+
+## Filing feedback (agents report too)
+
+- Over MCP: `loopback_submit_feedback(project=<slug>, type=ui|backend|usage|ux,
+  title=..., body=..., severity=p0-p3, reporter="agent", ...)`.
+- Over HTTP (hooks, CI, automation without MCP):
+  `POST http://127.0.0.1:7077/ingest` with the same JSON fields.
+- For LLM/automation output, set `type="usage"` and put run metadata in
+  `extra.context` (`{"run_id": ..., "model": ..., "trace_url": ...}`) so the
+  next agent can chase the run, not just the symptom.
+
+## Orientation
+
+- `loopback_get_stats(project=<slug>)` — queue health before/after a session.
+- Humans see the same queue at `http://127.0.0.1:7077/queue` (central instance
+  running with `--http`) and as live pins on any page embedding the widget.

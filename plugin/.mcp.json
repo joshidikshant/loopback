@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "loopback": {
+      "command": "npx",
+      "args": ["-y", "github:joshidikshant/loopback"]
+    }
+  }
+}

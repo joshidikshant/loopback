@@ -1,0 +1,24 @@
+<!--
+  Loopback widget embed — paste before </body> of any web app (any framework).
+  Replace data-project with your project slug (the same one you passed to
+  `loopback-mcp-server init --project <slug>`). Requires the central instance:
+  `loopback-mcp-server --http`  (see keep-alive.md).
+-->
+<script src="http://127.0.0.1:7077/widget.js"
+        data-project="my-app"
+        data-endpoint="http://127.0.0.1:7077"></script>
+
+<!--
+  Optional — AI/automation features: wrap them so pins inside auto-carry run
+  metadata into extra.context (and auto-type as "usage" feedback):
+
+  <div data-loopback-context='{"feature":"support-answer","model":"my-llm-1","run_id":"run_123","trace_url":"https://traces.example.com/run_123"}'>
+    ...AI output the user might pin...
+  </div>
+
+  Notes
+  - The widget is dev/local-first. Beyond localhost, token-gate /ingest (see
+    README "Security") before embedding on anything public.
+  - The pin is an anchor, not a scope: failed requests (with response bodies)
+    and console lines ride along automatically — no wrapping needed for that.
+-->

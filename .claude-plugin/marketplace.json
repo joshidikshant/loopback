@@ -1,0 +1,16 @@
+{
+  "name": "loopback",
+  "description": "Loopback — the interactive feedback layer connecting real product usage to coding agents over MCP.",
+  "owner": {
+    "name": "Dikshant Joshi",
+    "url": "https://github.com/joshidikshant"
+  },
+  "plugins": [
+    {
+      "name": "loopback",
+      "source": "./plugin",
+      "description": "Feedback hub: pin feedback on your live app; agents claim, fix, and write back over MCP; the pin turns green.",
+      "version": "0.3.0"
+    }
+  ]
+}
