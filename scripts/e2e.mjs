@@ -208,6 +208,27 @@ async function main() {
   });
   console.log("✅ agent claimed, linked the fix, and resolved via MCP over HTTP");
 
+  // 4b. Walkthrough: with the page still open, the status change must announce
+  // itself (toast + pulsing pin) — the loop closes visibly, no reload needed.
+  log("live status walkthrough");
+  await page.evaluate(() => window.__loopback.refresh());
+  await page.waitForFunction(() => {
+    const root = document.querySelector("#loopback-widget-host")?.shadowRoot;
+    if (!root) return false;
+    const toasts = [...root.querySelectorAll(".toast")].map((t) => t.textContent);
+    return (
+      toasts.some((t) => t.includes("→ verified") && t.includes("claude-code")) &&
+      root.querySelector(".pin.pulse") !== null
+    );
+  });
+  const api = await page.evaluate(() => ({
+    project: window.__loopback.project,
+    hasRefresh: typeof window.__loopback.refresh === "function",
+  }));
+  assert(api.project === "acme-demo", "page API exposes the project");
+  assert(api.hasRefresh, "page API exposes refresh()");
+  console.log("✅ live walkthrough: open page announced open → verified (toast + pulsing pin)");
+
   // 5. Human reloads — the pin shows the closed loop
   log("reload for pin states");
   await page.reload({ waitUntil: "load" });

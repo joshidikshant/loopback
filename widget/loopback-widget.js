@@ -1,5 +1,13 @@
 /*!
- * Loopback capture widget v0.2.0 (MIT)
+ * Loopback capture widget v0.3.0 (MIT)
+ *
+ * Interaction lineage (all adapted, with thanks):
+ * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
+ * - Claude Design (Anthropic Labs) — element-anchored comments (pattern).
+ * - paraschopra/make-pages-interactive (MIT) — the "loop closes visibly"
+ *   walkthrough: status changes announce themselves on the page.
+ * - AAnkacHH/DOM-Review (MIT) — the window.__domReviewAPI idea, here as
+ *   window.__loopback (pins + refresh) for tests and agents.
  *
  * One script tag turns any web app into an interactive feedback surface:
  *
@@ -218,7 +226,9 @@
     ".actions .primary{background:#111;color:#fff;border:none}" +
     ".actions button{flex:1;padding:8px;border-radius:8px;border:1px solid #d4d4d8;background:#fafafa;cursor:pointer;font-size:13px}" +
     ".pin{position:absolute;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;color:#fff;font-size:11px;line-height:22px;text-align:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);transform:rotate(0deg)}" +
-    ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:#111;color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.3)}" +
+    ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:#111;color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:320px}" +
+    ".pin.pulse{animation:lbpulse 1.1s ease-out 3}" +
+    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring,rgba(17,17,17,.45))}to{box-shadow:0 0 0 13px rgba(0,0,0,0)}}" +
     "</style>" +
     '<button class="fab" part="fab">✦ Feedback</button>' +
     '<div class="panel"><h3>Loopback — ' +
@@ -251,14 +261,18 @@
     enterPinMode();
   });
 
+  var toastCount = 0;
   function toast(msg) {
     var el = document.createElement("div");
     el.className = "toast";
+    el.style.bottom = 70 + toastCount * 44 + "px";
+    toastCount++;
     el.textContent = msg;
     root.appendChild(el);
     setTimeout(function () {
       el.remove();
-    }, 3200);
+      toastCount = Math.max(0, toastCount - 1);
+    }, 3800);
   }
 
   // ---------- pin mode ----------
@@ -431,7 +445,49 @@
 
   // ---------- pin hydration + live status ----------
   var pinEls = [];
-  window.__loopback = { pins: [] };
+  var lastStatuses = {};
+  var changedIds = {};
+  var baseTitle = null;
+
+  // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
+  window.__loopback = {
+    version: "0.3.0",
+    project: PROJECT,
+    endpoint: ENDPOINT,
+    pins: [],
+    refresh: function () {
+      refreshPins();
+    },
+  };
+
+  // The closing act of every loop (spirit of make-pages-interactive's reload
+  // walkthrough): when an agent moves a pin's status, say so on the page —
+  // a toast, a pulse on the pin, and a 🔔 in the tab title if you're elsewhere.
+  function announceChanges(items) {
+    changedIds = {};
+    items.forEach(function (item) {
+      var prev = lastStatuses[item.id];
+      if (prev && prev !== item.status) {
+        changedIds[item.id] = true;
+        toast(
+          "✦ “" + item.title.slice(0, 42) + "” " + prev + " → " + item.status +
+            (item.assignee_agent ? " by " + item.assignee_agent : "") +
+            (item.links && item.links.pr_url ? " · PR linked" : "")
+        );
+        if (document.hidden && !baseTitle) {
+          baseTitle = document.title;
+          document.title = "🔔 " + baseTitle;
+        }
+      }
+      lastStatuses[item.id] = item.status;
+    });
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && baseTitle) {
+      document.title = baseTitle;
+      baseTitle = null;
+    }
+  });
 
   function refreshPins() {
     origFetch(
@@ -447,9 +503,11 @@
         return r.json();
       })
       .then(function (data) {
-        window.__loopback.pins = data.items || [];
-        renderPins(data.items || []);
-        renderPinList(data.items || []);
+        var items = data.items || [];
+        window.__loopback.pins = items;
+        announceChanges(items);
+        renderPins(items);
+        renderPinList(items);
       })
       .catch(function () {});
   }
@@ -482,6 +540,10 @@
         wontfix: "#6b7280",
       };
       pin.style.background = colors[item.status] || "#111";
+      if (changedIds[item.id]) {
+        pin.style.setProperty("--lb-ring", (colors[item.status] || "#111111") + "88");
+        pin.classList.add("pulse");
+      }
       pin.addEventListener("click", function () {
         toast(
           "#" + item.id + " · " + item.status +
@@ -492,6 +554,8 @@
       root.appendChild(pin);
       pinEls.push(pin);
     });
+    // Pulse once per announcement — scroll/resize re-renders must not replay it.
+    changedIds = {};
   }
 
   function renderPinList(items) {
