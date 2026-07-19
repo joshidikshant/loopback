@@ -5,6 +5,15 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **E2E hermeticity**: `scripts/e2e.mjs` previously spawned its bus on the
+  hub's default port — with a central instance already running, the spawn died
+  on EADDRINUSE and the suite silently ran against (and wrote test items into)
+  the live `~/.loopback/loopback.db`. The suite now uses dedicated ports
+  (7177/5273, overridable), injects its endpoint into the demo page via
+  `LOOPBACK_ENDPOINT`, and hard-aborts if the endpoint it reaches is not a
+  fresh instance. (fb_mrsdza3z)
+
 ## [0.3.1] — 2026-07-20
 
 Hardening from the first real-world dogfood run (widget injected at runtime on

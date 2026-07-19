@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.DEMO_PORT || 5173);
+// Loopback endpoint the served page should use (overridden by e2e for hermetic runs).
+const LOOPBACK = process.env.LOOPBACK_ENDPOINT || "http://127.0.0.1:7077";
 
 const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/api/contact") {
@@ -26,7 +28,12 @@ const server = createServer((req, res) => {
   }
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(readFileSync(join(__dirname, "index.html")));
+    res.end(
+      readFileSync(join(__dirname, "index.html"), "utf-8").replaceAll(
+        "http://127.0.0.1:7077",
+        LOOPBACK,
+      ),
+    );
     return;
   }
   res.writeHead(404);

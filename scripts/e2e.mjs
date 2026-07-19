@@ -18,8 +18,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
-const LB = "http://127.0.0.1:7077";
-const DEMO = "http://127.0.0.1:5173";
+// Dedicated E2E ports — never the hub's 7077/5173, so a running central
+// instance can't be mistaken for the test server (and its DB can't be touched).
+const LB_PORT = Number(process.env.LOOPBACK_E2E_PORT || 7177);
+const DEMO_PORT = Number(process.env.LOOPBACK_E2E_DEMO_PORT || 5273);
+const LB = `http://127.0.0.1:${LB_PORT}`;
+const DEMO = `http://127.0.0.1:${DEMO_PORT}`;
 const dbPath = join(tmpdir(), `loopback-e2e-${Date.now()}.db`);
 const children = [];
 let browserRef = null;
@@ -76,13 +80,25 @@ async function mcpCall(tool, args) {
 
 async function main() {
   // 1. Boot both servers
-  start(process.execPath, ["dist/index.js", "--http", "--port", "7077"], {
+  start(process.execPath, ["dist/index.js", "--http", "--port", String(LB_PORT)], {
     LOOPBACK_DB: dbPath,
   });
-  start(process.execPath, ["demo/serve.mjs"]);
+  start(process.execPath, ["demo/serve.mjs"], {
+    DEMO_PORT: String(DEMO_PORT),
+    LOOPBACK_ENDPOINT: LB,
+  });
   await waitFor(`${LB}/health`);
   await waitFor(`${DEMO}/`);
-  console.log("✅ loopback + demo app up");
+  // Hermeticity guard: if anything already answers here, it is NOT our fresh
+  // instance — refuse rather than test (and pollute) a live queue.
+  const fresh = await (await fetch(`${LB}/feedback?project=acme-demo&limit=1`)).json();
+  if (fresh.total !== 0) {
+    throw new Error(
+      `port ${LB_PORT} is serving a non-empty queue (acme-demo total=${fresh.total}) — ` +
+        `another loopback instance is running there. Set LOOPBACK_E2E_PORT to a free port.`,
+    );
+  }
+  console.log("✅ loopback + demo app up (hermetic: fresh DB confirmed)");
 
   let step = "launch";
   const watchdog = setTimeout(() => {
