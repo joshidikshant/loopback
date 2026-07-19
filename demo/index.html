@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acme Demo — Loopback widget playground</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; max-width: 680px; margin: 3rem auto; padding: 0 1rem; color: #16181d; }
+    h1 { font-size: 1.5rem; }
+    .card { border: 1px solid #e5e5e8; border-radius: 12px; padding: 1.2rem 1.4rem; margin: 1.2rem 0; }
+    label { display: block; font-size: .85rem; color: #555; margin-top: .6rem; }
+    input, textarea { width: 100%; padding: .55rem; border: 1px solid #d4d4d8; border-radius: 8px; font-size: .95rem; }
+    button { margin-top: .8rem; padding: .6rem 1.2rem; border: none; border-radius: 8px; background: #16181d; color: #fff; cursor: pointer; }
+    .status { font-size: .85rem; margin-top: .5rem; }
+    .ai { background: #f8f8fb; }
+    .ai-answer { font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>Acme Demo</h1>
+  <p>Playground for the Loopback widget. Two things are wrong here on purpose:
+     the contact form's <em>backend</em> is broken (frontend looks fine), and the
+     AI answer below is confidently wrong.</p>
+
+  <div class="card">
+    <h2>Contact us</h2>
+    <form id="contact-form">
+      <label>Name</label>
+      <input id="name" value="DJ" />
+      <label>Message</label>
+      <textarea id="message">Hello!</textarea>
+      <button type="submit" data-testid="contact-submit">Send message</button>
+      <div class="status" id="contact-status"></div>
+    </form>
+  </div>
+
+  <div class="card ai" data-loopback-context='{"feature":"support-answer","model":"acme-llm-2","run_id":"run_8f31a","trace_url":"https://traces.acme.dev/run_8f31a"}'>
+    <h2>AI support answer</h2>
+    <p class="ai-answer" data-testid="ai-answer">
+      “To reset your password, please mail us a photocopy of your keyboard.”
+    </p>
+  </div>
+
+  <script>
+    document.getElementById("contact-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("contact-status");
+      status.textContent = "Sending…";
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: document.getElementById("name").value,
+            message: document.getElementById("message").value,
+          }),
+        });
+        if (res.ok) {
+          status.textContent = "✓ Sent!";
+        } else {
+          status.textContent = "Something went wrong. Please try again.";
+          console.error("contact form failed with status", res.status);
+        }
+      } catch (err) {
+        status.textContent = "Something went wrong. Please try again.";
+        console.error("contact form network error", err);
+      }
+    });
+  </script>
+
+  <!-- Loopback widget: one tag, any app -->
+  <script src="http://127.0.0.1:7077/widget.js"
+          data-project="acme-demo"
+          data-endpoint="http://127.0.0.1:7077"></script>
+</body>
+</html>
