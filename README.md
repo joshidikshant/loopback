@@ -138,6 +138,8 @@ your app's CSS or framework.
 - **Selector + element**: stable CSS selector (`#id` / `[data-testid]`
   preferred, `nth-of-type` fallback, depth-capped) + outerHTML snippet +
   viewport + UA.
+- **SPA-aware**: client-side route changes (`pushState`/`popstate`) refresh
+  pins immediately — no stale pins from the previous route.
 - **Live status pins**: hydrate from `GET /feedback` on load and every 10s —
   amber `open/triaged`, blue `in_progress`, green `fixed/verified`, gray
   `wontfix`; click one for id/status/assignee/PR.

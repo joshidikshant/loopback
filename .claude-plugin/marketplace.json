@@ -10,7 +10,7 @@
       "name": "loopback",
       "source": "./plugin",
       "description": "Feedback hub: pin feedback on your live app; agents claim, fix, and write back over MCP; the pin turns green.",
-      "version": "0.3.0"
+      "version": "0.3.1"
     }
   ]
 }

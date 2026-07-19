@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.3.0 (MIT)
+ * Loopback capture widget v0.3.1 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -153,6 +153,25 @@
   };
 
   // ---------- css path generator ----------
+  // Classes that describe state, not identity — never stable anchors.
+  var STATE_CLASSES = /^(active|selected|current|open|closed|visible|hidden|disabled|checked|focus|hover|loading|expanded|collapsed)$/;
+  function semanticClasses(el) {
+    var raw = typeof el.className === "string" ? el.className : "";
+    var tokens = raw.split(/\s+/).filter(function (t) {
+      if (!t || t.length < 3 || t.length > 24) return false;
+      if (STATE_CLASSES.test(t)) return false;
+      if (/^(is-|has-|js-)/.test(t)) return false; // state/behavior hooks
+      if (/[\d:[\]\/!%#.]/.test(t)) return false; // utility scales & arbitrary-value syntax
+      return /^[a-zA-Z][a-zA-Z_-]*$/.test(t);
+    });
+    return tokens
+      .slice(0, 2)
+      .map(function (t) {
+        return "." + CSS.escape(t);
+      })
+      .join("");
+  }
+
   function cssPath(el) {
     if (!(el instanceof Element)) return "";
     if (el.id) return "#" + CSS.escape(el.id);
@@ -166,6 +185,7 @@
         path.unshift(seg + '[data-testid="' + testId + '"]');
         break;
       }
+      seg += semanticClasses(node);
       var parent = node.parentElement;
       if (parent) {
         var same = Array.prototype.filter.call(parent.children, function (c) {
@@ -229,6 +249,11 @@
     ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:#111;color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:320px}" +
     ".pin.pulse{animation:lbpulse 1.1s ease-out 3}" +
     "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring,rgba(17,17,17,.45))}to{box-shadow:0 0 0 13px rgba(0,0,0,0)}}" +
+    // The widget owns its scheme: host pages setting color-scheme:dark must not
+    // flip UA control colors inside the shadow root (white-on-white buttons).
+    ".panel,.form,.toast{color-scheme:light}" +
+    ".panel button,.actions button,.form input,.form textarea,.form select{color:#111}" +
+    ".form input,.form textarea,.form select{background:#fff}" +
     "</style>" +
     '<button class="fab" part="fab">✦ Feedback</button>' +
     '<div class="panel"><h3>Loopback — ' +
@@ -451,13 +476,15 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.3.0",
+    version: "0.3.1",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
     refresh: function () {
       refreshPins();
     },
+    // internal, exposed for tests and browser-driving agents
+    _cssPath: cssPath,
   };
 
   // The closing act of every loop (spirit of make-pages-interactive's reload
@@ -573,10 +600,30 @@
       : "<div style='color:#777;padding:6px'>No feedback on this page yet.</div>";
   }
 
-  window.addEventListener("scroll", function () {
-    renderPins(window.__loopback.pins);
+  var rafPending = false;
+  function scheduleRender() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () {
+      rafPending = false;
+      renderPins(window.__loopback.pins);
+    });
+  }
+  window.addEventListener("scroll", scheduleRender);
+  window.addEventListener("resize", scheduleRender);
+
+  // SPA route changes (Next/React routers): refresh immediately instead of
+  // leaving the previous route's pins up until the next poll tick.
+  ["pushState", "replaceState"].forEach(function (fn) {
+    var orig = history[fn];
+    if (!orig) return;
+    history[fn] = function () {
+      var out = orig.apply(this, arguments);
+      setTimeout(refreshPins, 50);
+      return out;
+    };
   });
-  window.addEventListener("resize", function () {
-    renderPins(window.__loopback.pins);
+  window.addEventListener("popstate", function () {
+    setTimeout(refreshPins, 50);
   });
 })();

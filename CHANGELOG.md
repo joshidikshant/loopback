@@ -5,6 +5,32 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-07-20
+
+Hardening from the first real-world dogfood run (widget injected at runtime on
+a production-grade Next.js 16 App Router site). Each fix closed a queue item
+end-to-end: filed → claimed → fixed → verified on the live page → resolved.
+
+### Fixed
+- **Widget unreadable on `color-scheme: dark` hosts**: the host page's
+  color-scheme inherited into the shadow root, so UA dark-mode control colors
+  produced white-on-white buttons/inputs. The widget UI now pins
+  `color-scheme: light` and explicit control colors. (fb_mrsdh5kz)
+- **Stale pins after SPA navigation**: client-side route changes left the
+  previous route's pins rendered for up to one 10s poll tick. The widget now
+  hooks `history.pushState`/`replaceState` + `popstate` and refreshes
+  immediately; scroll/resize pin re-renders are rAF-throttled. (fb_mrsdrgpo)
+- **Brittle selectors on class-only DOMs**: the generator now includes up to
+  two semantic class tokens per path segment (state/utility classes filtered
+  via stop-list) before falling back to `nth-of-type`, and exposes
+  `window.__loopback._cssPath` for tests and browser-driving agents.
+  (fb_mrsdrgq9)
+
+### Added
+- E2E regression coverage for all three: dark-scheme control colors,
+  semantic-class selector output, and instant pin refresh across
+  `pushState`/`popstate` navigations.
+
 ## [0.3.0] — 2026-07-20
 
 The hub release: Loopback becomes a standalone cross-project, cross-agent

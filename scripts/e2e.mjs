@@ -252,6 +252,38 @@ async function main() {
   assert(pinCount === 2, `both pins rendered on the page (got ${pinCount})`);
   console.log("✅ reload: pin is green/verified with agent + PR attached — loop closed visibly");
 
+  // 6. Widget hardening (regressions found dogfooding on a real Next.js site)
+  log("hardening: dark color-scheme");
+  const btnColor = await page.evaluate(() => {
+    document.documentElement.style.colorScheme = "dark";
+    const root = document.querySelector("#loopback-widget-host").shadowRoot;
+    return getComputedStyle(root.querySelector(".pinbtn")).color;
+  });
+  assert(
+    btnColor === "rgb(17, 17, 17)",
+    `widget controls keep explicit colors under color-scheme:dark (got ${btnColor})`,
+  );
+
+  log("hardening: semantic-class selectors");
+  const selSample = await page.evaluate(() =>
+    window.__loopback._cssPath(document.querySelector(".card.ai h2")),
+  );
+  assert(
+    selSample.includes("div.card"),
+    `selector generator uses semantic classes (got ${selSample})`,
+  );
+
+  log("hardening: SPA route-change refresh");
+  await page.evaluate(() => history.pushState({}, "", "/other-route"));
+  await page.waitForFunction(() => (window.__loopback?.pins ?? []).length === 0, {
+    timeout: 2500,
+  });
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(() => (window.__loopback?.pins ?? []).length === 2, {
+    timeout: 2500,
+  });
+  console.log("✅ hardening: dark-scheme colors, semantic selectors, instant SPA pin refresh");
+
   await browser.close();
   console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure");
 }
