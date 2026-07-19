@@ -9,10 +9,20 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "smoke": "node dist/smoke-test.js",
+    "e2e": "node scripts/e2e.mjs",
     "clean": "rm -rf dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joshidikshant/loopback.git"
+  },
+  "homepage": "https://github.com/joshidikshant/loopback#readme",
+  "bugs": {
+    "url": "https://github.com/joshidikshant/loopback/issues"
   },
   "engines": {
     "node": ">=22.13"
