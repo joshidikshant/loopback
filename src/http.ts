@@ -118,9 +118,10 @@ export function createHttpApp(
       )
       .join("\n");
     res.type("html").send(`<!doctype html><meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <title>Loopback queue</title>
 <style>
-  body{font:14px/1.5 system-ui;margin:2rem;color:#111}
+  body{font:14px/1.5 system-ui;margin:2rem;color:#111;background:#fff}
   table{border-collapse:collapse;width:100%}
   td,th{border-bottom:1px solid #e5e5e5;padding:.5rem .6rem;text-align:left;vertical-align:top}
   code{background:#f4f4f5;padding:.1rem .3rem;border-radius:4px}

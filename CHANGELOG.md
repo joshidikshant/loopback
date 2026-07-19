@@ -6,6 +6,10 @@ All notable changes to Loopback are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- **`/queue` unreadable in dark-preferring browsers**: the triage page set dark
+  text but no background/color-scheme, so a dark UA canvas swallowed the rows.
+  It now declares `color-scheme: light` + an explicit background — the same
+  discipline the widget's shadow UI got in 0.3.1. (fb_mrse2fdk)
 - **E2E hermeticity**: `scripts/e2e.mjs` previously spawned its bus on the
   hub's default port — with a central instance already running, the spawn died
   on EADDRINUSE and the suite silently ran against (and wrote test items into)
