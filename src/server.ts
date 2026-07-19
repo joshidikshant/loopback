@@ -16,7 +16,7 @@ import {
 import { itemMarkdown, listMarkdown } from "./format.js";
 import type { FeedbackItem } from "./types.js";
 
-export const SERVER_VERSION = "0.3.1";
+export const SERVER_VERSION = "0.4.0";
 
 type ToolResult = {
   content: { type: "text"; text: string }[];

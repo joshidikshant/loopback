@@ -5,7 +5,29 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-20
+
+The surfaces release: the queue is explicitly cross-surface, with the flag,
+docs, and snippets to prove it. Driven by round two of real-world dogfooding
+(contact-form hero scenario + surface audit).
+
+### Added
+- **`--host` / `LOOPBACK_HOST`** for the `--http` hub (default stays
+  `127.0.0.1`): opt-in LAN binding so physical iOS/Android devices can load
+  the widget and POST `/ingest`. The server warns loudly that there is no
+  auth; trusted networks only. (fb_mrseejl6)
+- **`docs/05-surface-compatibility.md`** — the tiered surface matrix (web,
+  extensions, Electron/Tauri, WebViews, native macOS/Windows, mobile
+  simulator/device/production, CLI/CI, agents) with native `POST /ingest`
+  snippets for Swift, Kotlin, C#, and shell, plus a README "Where it works"
+  section.
+
 ### Fixed
+- **`/queue` change column ignored commit-only links** — items linked with a
+  commit but no PR showed "—"; now falls back to the short SHA. (fb_mrseejkq)
+- **Demo page dark-on-dark in dark-preferring browsers** — same class as the
+  `/queue` bug; demo now declares `color-scheme: light` + explicit background.
+  (fb_mrseejln)
 - **`/queue` unreadable in dark-preferring browsers**: the triage page set dark
   text but no background/color-scheme, so a dark UA canvas swallowed the rows.
   It now declares `color-scheme: light` + an explicit background — the same

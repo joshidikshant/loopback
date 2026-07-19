@@ -113,7 +113,13 @@ export function createHttpApp(
           <td>${escapeHtml(i.title)}</td>
           <td class="s-${escapeHtml(i.status)}">${escapeHtml(i.status)}</td>
           <td>${escapeHtml(i.assignee_agent ?? "—")}</td>
-          <td>${i.links.pr_url ? `<a href="${escapeHtml(i.links.pr_url)}">PR</a>` : "—"}</td>
+          <td>${
+            i.links.pr_url
+              ? `<a href="${escapeHtml(i.links.pr_url)}">PR</a>`
+              : i.links.commit
+                ? `<code>${escapeHtml(i.links.commit.slice(0, 9))}</code>`
+                : "—"
+          }</td>
         </tr>`,
       )
       .join("\n");

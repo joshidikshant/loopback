@@ -119,6 +119,20 @@ All three also accept the long-running instance over streamable HTTP
    my-app"* — or say nothing: the skill descriptions and AGENTS.md section make
    feedback-ish requests trigger the loop on their own.
 
+## Where it works (surfaces)
+
+The queue is transport-agnostic — the widget is just its richest producer.
+Full matrix, native snippets (Swift/Kotlin/C#/shell), and the honest edges:
+[docs/05-surface-compatibility.md](docs/05-surface-compatibility.md).
+
+| Surface | Status |
+|---|---|
+| Web apps (any framework, dev/prod) · browser extensions (bundle the widget file — MV3 forbids remote scripts) · Electron/Tauri · WebViews | ✅ widget: pins + auto-context + green write-back |
+| Native macOS/Windows apps · CLIs · CI/cron · agents/automations | ✅ `POST /ingest` or MCP (~10-line debug-menu snippet; status via `/queue`) |
+| iOS/Android simulators & emulators | ✅ shared loopback / `adb reverse` |
+| iOS/Android physical devices on LAN | ✅ `--host 0.0.0.0` (opt-in, **no auth** — trusted networks only) |
+| iOS/Android production | ✅ via Sentry/PostHog rails (their SDKs capture; bridge to the queue) |
+
 ## The widget
 
 ~19KB of dependency-free vanilla JS in a shadow-DOM host — it never fights
@@ -179,9 +193,11 @@ Responses are markdown (default) or JSON via `response_format`, always with
 | `GET /widget.js` | The embeddable widget |
 | `GET /health` | Liveness |
 
-**Security**: binds `127.0.0.1`, CORS is permissive for local dev. Before
-exposing beyond localhost, put it behind a reverse proxy with a bearer token
-(and token-gate `/ingest` first) — by design there is no auth yet.
+**Security**: binds `127.0.0.1` by default; CORS is permissive for local dev.
+`--host`/`LOOPBACK_HOST` widens the bind for LAN device testing — **there is
+no auth**, the server warns loudly, use only on trusted networks. Before any
+real exposure, put it behind a reverse proxy with a bearer token (and
+token-gate `/ingest` first).
 
 ## Tests
 
