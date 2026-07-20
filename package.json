@@ -16,8 +16,8 @@
     "e2e": "node scripts/e2e.mjs",
     "init-gate": "node scripts/init-gate.mjs",
     "registry-gate": "node scripts/registry-gate.mjs",
-    "registry:build": "shadcn build ./registry.json --output ./public/r",
-    "registry:validate": "shadcn registry validate ./registry.json",
+    "registry:build": "npx --yes shadcn@latest build ./registry.json --output ./public/r",
+    "registry:validate": "npx --yes shadcn@latest registry validate ./registry.json",
     "clean": "rm -rf dist"
   },
   "repository": {
