@@ -5,6 +5,35 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-20
+
+Human triage: the queue stops being read-only for people.
+
+### Added
+- **`GET /queue/:id` — a deep-linkable item view.** Every captured detail on
+  one page: metadata, report, repro steps, failing requests with their response
+  bodies, full network and console history, AI run context, captured
+  environment, linked change, and the complete comment trail. Paste the URL to
+  a teammate or an agent and they land on exactly the same thing. Queue rows
+  link to it; the inline expansion stays for a quick read.
+- **Human triage actions** — add a comment and change status directly from the
+  item view, as plain HTML form posts that work without JavaScript. Filing was
+  already possible from the widget; commenting and moving an item previously
+  required an agent or `curl`.
+- E2E coverage for the detail view: full context renders, a human comment lands
+  on the trail, and the security guard below actually holds.
+
+### Security
+- **State-changing triage endpoints are same-origin only.** The server is
+  unauthenticated with deliberately wide-open CORS, because the capture widget
+  must `POST /ingest` from whatever origin the host app runs on. That trade is
+  fine for append-only intake, but must not extend to rewriting an item's
+  status or audit trail — otherwise any page you merely visit could quietly
+  edit your queue. `/queue/:id/comment` and `/queue/:id/status` now reject
+  cross-origin submissions (browsers always attach `Origin` to a cross-origin
+  POST) while local tooling that sends no `Origin` keeps working. `/ingest`
+  stays open by design; E2E asserts both halves.
+
 ## [0.5.0] — 2026-07-20
 
 **Loopback Design System v0** — one token set behind both surfaces, in vanilla

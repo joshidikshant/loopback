@@ -119,6 +119,24 @@ All three also accept the long-running instance over streamable HTTP
    my-app"* — or say nothing: the skill descriptions and AGENTS.md section make
    feedback-ish requests trigger the loop on their own.
 
+## Using it day to day
+
+With the hub running (`loopback-mcp-server --http`), everything happens on two
+surfaces and one sentence to an agent:
+
+| I want to… | Do this |
+|---|---|
+| **Report something** on a page with the widget | Click **✦ Feedback → Pin feedback on an element**, click the thing, describe it. Failing requests, console, and AI run context attach themselves. |
+| **See the queue** | `http://127.0.0.1:7077/queue` — filter with `?project=<slug>`, click a row for a quick read |
+| **Read everything on one item** | Click its id → `http://127.0.0.1:7077/queue/<id>`. Deep-linkable: paste it to a teammate or an agent. |
+| **Comment or change status myself** | On the item view — plain forms, no agent needed |
+| **Get it fixed** | In the repo, tell any agent: *"work the feedback queue for `<slug>`"* |
+| **Watch it close** | The pin on your page turns green and announces itself; the item shows the commit/PR |
+| **File from a script or CI** | `POST /ingest` with `{"project","type","title","body"}` |
+
+Writes that change an item (comment, status) are **same-origin only** — see
+[Security](#http-surface---http-port-7077--loopback_http_port---port) below.
+
 ## Giving feedback *about* Loopback
 
 Loopback is its own reference integration — it eats its own dog food, and so
@@ -236,7 +254,10 @@ Responses are markdown (default) or JSON via `response_format`, always with
 | `POST /mcp` | Stateless MCP streamable HTTP (fresh server per request; GET/DELETE → 405) |
 | `POST /ingest` | Plain-JSON submit — widgets, CI hooks, cron ingestors (201 + item; 400 with field-level issues) |
 | `GET /feedback` | List/filter (widget pin hydration) |
-| `GET /queue` | Minimal human triage table (`?project=` filter, status-colored) |
+| `GET /queue` | Human triage dashboard (`?project=` filter, expandable rows, theme toggle) |
+| `GET /queue/:id` | Full item view — all captured context + comment/status actions |
+| `POST /queue/:id/comment` · `POST /queue/:id/status` | Human triage writes (**same-origin only**) |
+| `GET /feedback/:id` | One item with its full trail, as JSON |
 | `GET /widget.js` | The embeddable widget |
 | `GET /health` | Liveness |
 

@@ -1,6 +1,6 @@
 {
   "name": "loopback",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Loopback feedback hub for Claude Code: the loopback skill (work the feedback queue) + MCP registration for the project-tagged feedback bus. Codex gets the same via .agents/skills + config.toml; Gemini via AGENTS.md + settings.json.",
   "author": {
     "name": "Dikshant Joshi",

@@ -344,8 +344,70 @@ async function main() {
   });
   console.log("✅ hardening: dark-scheme colors, semantic selectors, instant SPA pin refresh");
 
+  // 7. The human triage surface: a deep-linkable item view where a person can
+  //    read everything captured and act on it without an agent or curl.
+  log("item detail view");
+  await page.goto(`${LB}/queue/${contactItem.id}`, { waitUntil: "load" });
+  const detail = await page.evaluate(() => ({
+    title: document.querySelector("h1")?.textContent ?? "",
+    text: document.body.innerText,
+    forms: [...document.querySelectorAll("form.act")].map((f) => f.getAttribute("action")),
+  }));
+  assert(detail.title.includes("Contact form"), "detail view shows the item title");
+  assert(
+    detail.text.includes("DB_WRITE_FAILED") && detail.text.includes("0042_add_message_column"),
+    "detail view renders the captured backend error body a human can act on",
+  );
+  assert(
+    detail.text.includes("fix/contacts-migration") && detail.text.includes("pull/7"),
+    "detail view renders the linked change",
+  );
+  assert(detail.forms.length === 2, "detail view offers comment + status forms");
+
+  log("human comment via the form");
+  await page.fill("form.act[action$='/comment'] [name=body]", "Checked this myself — reproduces.");
+  await page.fill("form.act[action$='/comment'] [name=author]", "dj");
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "load" }),
+    page.click("form.act[action$='/comment'] button[type=submit]"),
+  ]);
+  const afterComment = await page.evaluate(() => document.body.innerText);
+  assert(afterComment.includes("Comment added"), "comment form confirms the write");
+  assert(
+    afterComment.includes("Checked this myself — reproduces."),
+    "the human comment is on the trail immediately",
+  );
+
+  log("cross-origin write is refused");
+  // The server is unauthenticated with wide-open CORS so the widget can post
+  // /ingest from any origin. That must not extend to mutating the queue, or a
+  // page you merely visit could rewrite your audit trail.
+  const before = (await (await fetch(`${LB}/feedback/${contactItem.id}`)).json()).status;
+  const foreign = await fetch(`${LB}/queue/${contactItem.id}/status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Origin: "https://evil.example",
+    },
+    body: "status=open&note=hijacked",
+  });
+  assert(foreign.status === 403, `a foreign origin cannot rewrite the queue (got ${foreign.status})`);
+  const after = (await (await fetch(`${LB}/feedback/${contactItem.id}`)).json()).status;
+  assert(
+    after === before && before !== "open",
+    `the refused write changed nothing (was '${before}', still '${after}')`,
+  );
+  // /ingest must stay open — it is how widgets on other origins report at all.
+  const ingest = await fetch(`${LB}/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://any-app.example" },
+    body: JSON.stringify({ project: "acme-demo", type: "ui", title: "cross-origin intake still works" }),
+  });
+  assert(ingest.status === 201, `cross-origin /ingest still accepted (got ${ingest.status})`);
+  console.log("✅ item detail view: full context, human comment lands, cross-origin writes refused");
+
   await browser.close();
-  console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure");
+  console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure → human triage");
 }
 
 main()
