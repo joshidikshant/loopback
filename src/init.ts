@@ -21,7 +21,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -131,12 +131,24 @@ function renderedSkill(project: string): string {
   return lines.join("\n");
 }
 
-/** How agent configs should launch the server: local checkout if stable, npx otherwise. */
-function serverCommand(): { command: string; args: string[] } {
+/**
+ * How agent configs should launch the server.
+ *
+ * - Server lives inside the repo being onboarded (Loopback onboarding itself,
+ *   or a monorepo vendoring it) → repo-relative path, so the committed config
+ *   works on every clone and leaks no machine paths.
+ * - Stable checkout elsewhere → absolute path (fast startup).
+ * - Ephemeral npx run → `npx github:` (nothing stable to point at).
+ */
+function serverCommand(cwd: string): { command: string; args: string[] } {
   const entry = resolve(PACKAGE_ROOT, "dist", "index.js");
   const ephemeral = entry.split(sep).includes("_npx");
-  if (!ephemeral && existsSync(entry)) return { command: "node", args: [entry] };
-  return { command: "npx", args: ["-y", REPO_SPEC] };
+  if (ephemeral || !existsSync(entry)) return { command: "npx", args: ["-y", REPO_SPEC] };
+  const inside = relative(cwd, entry);
+  if (!inside.startsWith("..") && !isAbsolute(inside)) {
+    return { command: "node", args: [`./${inside.split(sep).join("/")}`] };
+  }
+  return { command: "node", args: [entry] };
 }
 
 function readIfExists(path: string): string | null {
@@ -331,7 +343,7 @@ function widgetEmbed(project: string): string {
 
 export async function runInit(argv: string[]): Promise<void> {
   const opts = parseArgs(argv, process.cwd());
-  const cmd = serverCommand();
+  const cmd = serverCommand(opts.cwd);
   const section = playbookSection(opts.project);
   const skill = renderedSkill(opts.project);
   const has = (agent: AgentName): boolean => opts.agents.includes(agent);

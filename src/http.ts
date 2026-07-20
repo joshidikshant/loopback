@@ -18,6 +18,15 @@ import { SERVER_VERSION } from "./server.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Origin this request came in on, so the queue page's own widget talks back to
+ * the same instance whether that's 127.0.0.1, a LAN IP (--host), or a proxy.
+ */
+function selfOrigin(req: express.Request): string {
+  const host = req.get("host") ?? "127.0.0.1:7077";
+  return `${req.protocol}://${host}`;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
@@ -134,11 +143,18 @@ export function createHttpApp(
   .s-open{color:#b45309}.s-in_progress{color:#1d4ed8}.s-fixed{color:#047857}
   .s-verified{color:#047857;font-weight:600}.s-wontfix{color:#6b7280}
   h1{font-size:1.2rem}
+  .hint{color:#6b7280;font-size:12.5px;margin:-.4rem 0 1rem}
 </style>
 <h1>Loopback queue ${project ? `— ${escapeHtml(project)}` : "(all projects)"} · ${result.total} items</h1>
+<p class="hint">Something wrong or clumsy on <em>this</em> page? Pin it — feedback about Loopback
+files to the <code>loopback</code> project, the same loop everything else uses.</p>
 <table><tr><th>id</th><th>project</th><th>sev/type</th><th>title</th><th>status</th><th>assignee</th><th>change</th></tr>
 ${rows || "<tr><td colspan=7>Queue is empty.</td></tr>"}
-</table>`);
+</table>
+<!-- Loopback, pinnable by Loopback: the triage page is its own reference integration. -->
+<script src="${escapeHtml(selfOrigin(req))}/widget.js"
+        data-project="loopback"
+        data-endpoint="${escapeHtml(selfOrigin(req))}"></script>`);
   });
 
   // Stateless MCP: fresh server+transport per request (no session state, no SSE).

@@ -1,0 +1,4 @@
+# Loopback feedback bus (written by `loopback-mcp-server init`)
+[mcp_servers.loopback]
+command = "node"
+args = ["./dist/index.js"]

@@ -115,6 +115,20 @@ assert(
 );
 assert(stdout.includes('data-project="test-app"'), "init prints the widget embed with the slug");
 
+// An external consuming repo correctly gets an absolute path to the checkout.
+// But when the server lives INSIDE the repo being onboarded — this repo, which
+// self-onboards and commits the result — the path must be repo-relative, or the
+// committed config leaks a username and breaks on every other clone.
+const HOME = process.env.HOME ?? "/Users";
+for (const cfg of [".mcp.json", ".codex/config.toml", ".gemini/settings.json"]) {
+  const body = read(process.cwd(), cfg);
+  if (body === null) continue; // repo not self-onboarded (fine for consumers)
+  assert(
+    !body.includes(HOME) && body.includes("./dist/index.js"),
+    `self-onboarded ${cfg} uses a repo-relative path, not a machine path`,
+  );
+}
+
 // ---------- 2. Idempotence: second run is byte-identical, no duplicates ----------
 const before = hashAll(fresh, TRACKED);
 runInit(fresh);

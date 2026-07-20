@@ -5,6 +5,29 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Loopback is now its own reference integration.** `/queue` embeds the
+  capture widget (`data-project=loopback`, endpoint derived from the request
+  host so it works on localhost, a LAN `--host` bind, or behind a proxy) — you
+  can pin feedback about Loopback on Loopback's own page. The repo is also
+  self-onboarded with its own `init`, so any agent opening it finds AGENTS.md,
+  both SKILL.md installs, and all three MCP configs. (fb_mrsusvxf)
+
+### Fixed
+- **`init` leaked a machine path when the server lives inside the onboarded
+  repo**: self-onboarding wrote an absolute `/Users/<name>/…` path into
+  `.mcp.json` — unusable by other clones and about to be committed publicly.
+  It now emits a repo-relative `./dist/index.js` in that case (absolute stays
+  correct for external consuming repos, `npx github:` for ephemeral runs), and
+  the init gate asserts the committed configs carry no home directory.
+  (fb_mrsuu878)
+
+### Known gaps
+- `/queue` has no item detail view: comments, links, and captured context are
+  only readable through `loopback_get_feedback`. Needs `GET /feedback/:id` +
+  expandable rows. Filed as fb_mrsuxhpm (triaged) — through the widget, on the
+  queue page itself.
+
 ## [0.4.0] — 2026-07-20
 
 The surfaces release: the queue is explicitly cross-surface, with the flag,

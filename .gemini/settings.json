@@ -1,0 +1,16 @@
+{
+  "context": {
+    "fileName": [
+      "GEMINI.md",
+      "AGENTS.md"
+    ]
+  },
+  "mcpServers": {
+    "loopback": {
+      "command": "node",
+      "args": [
+        "./dist/index.js"
+      ]
+    }
+  }
+}
