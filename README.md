@@ -119,6 +119,30 @@ All three also accept the long-running instance over streamable HTTP
    my-app"* — or say nothing: the skill descriptions and AGENTS.md section make
    feedback-ish requests trigger the loop on their own.
 
+## Giving feedback *about* Loopback
+
+Loopback is its own reference integration — it eats its own dog food, and so
+can you. Four ways in, from most to least convenient:
+
+1. **Pin it on the queue page.** With the hub running, open
+   `http://127.0.0.1:7077/queue` — the capture widget is embedded there with
+   `data-project=loopback`. Click **✦ Feedback → Pin feedback on an element**,
+   click whatever is wrong, describe it. Same loop as any other project.
+2. **Tell an agent.** In this repo (self-onboarded with its own `init`), say
+   *"file feedback for loopback: <what's wrong>"* — the skill and AGENTS.md
+   section are already installed for Claude, Codex, and Gemini.
+3. **`curl` it** from anywhere:
+   ```bash
+   curl -X POST http://127.0.0.1:7077/ingest -H 'Content-Type: application/json' \
+     -d '{"project":"loopback","type":"ux","severity":"p2",
+          "title":"…","body":"what happened / what you expected"}'
+   ```
+4. **GitHub issues** for anything a stranger should see:
+   <https://github.com/joshidikshant/loopback/issues>.
+
+Then work it like any queue: *"work the feedback queue for loopback"*. Every
+Loopback defect in this repo's history was filed and closed exactly this way.
+
 ## Where it works (surfaces)
 
 The queue is transport-agnostic — the widget is just its richest producer.
