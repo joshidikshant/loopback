@@ -143,6 +143,29 @@ can you. Four ways in, from most to least convenient:
 Then work it like any queue: *"work the feedback queue for loopback"*. Every
 Loopback defect in this repo's history was filed and closed exactly this way.
 
+## Design system (shadcn-compatible, zero dependencies)
+
+Both surfaces — widget and `/queue` — are built from one token set in vanilla
+CSS that speaks **shadcn/ui's contract** (oklch variables, `.dark`, the
+multiplicative radius scale). No React, no Tailwind, no build step; drop
+`design/tokens.css` into any shadcn/v0 project and it themes from that
+project's palette. Full rationale and the shadow-DOM isolation rules:
+[design/README.md](design/README.md).
+
+Loopback also **publishes a shadcn registry**, so React projects can install
+its pieces and the **shadcn MCP** can discover them:
+
+```bash
+npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-theme.json
+npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-widget.json
+```
+
+`loopback-theme` adds the `--lb-*` feedback status/severity tokens to your
+existing theme (your palette untouched; Tailwind gets `bg-lb-verified` for
+free). `loopback-widget` drops the capture widget into `public/`. Register
+`"@loopback"` in your `components.json` to install by name and let an agent
+with the shadcn MCP browse the registry.
+
 ## Where it works (surfaces)
 
 The queue is transport-agnostic — the widget is just its richest producer.

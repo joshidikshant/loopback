@@ -1,0 +1,51 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "loopback-theme",
+  "title": "Loopback theme",
+  "author": "Dikshant Joshi <https://github.com/joshidikshant>",
+  "description": "Feedback-status and severity design tokens (open, triaged, in_progress, fixed, verified, wontfix, p0-p3) as CSS variables, in shadcn's oklch contract with light and dark values. Adds to your theme rather than replacing it: every variable is --lb- prefixed, so your own palette is untouched.",
+  "cssVars": {
+    "light": {
+      "lb-open": "oklch(0.555 0.163 48.998)",
+      "lb-open-foreground": "oklch(0.985 0 0)",
+      "lb-triaged": "oklch(0.555 0.163 48.998)",
+      "lb-triaged-foreground": "oklch(0.985 0 0)",
+      "lb-in-progress": "oklch(0.488 0.243 264.376)",
+      "lb-in-progress-foreground": "oklch(0.985 0 0)",
+      "lb-fixed": "oklch(0.508 0.118 165.612)",
+      "lb-fixed-foreground": "oklch(0.985 0 0)",
+      "lb-verified": "oklch(0.508 0.118 165.612)",
+      "lb-verified-foreground": "oklch(0.985 0 0)",
+      "lb-wontfix": "oklch(0.551 0.027 264.364)",
+      "lb-wontfix-foreground": "oklch(0.985 0 0)",
+      "lb-p0": "oklch(0.577 0.245 27.325)",
+      "lb-p1": "oklch(0.666 0.179 58.318)",
+      "lb-p2": "oklch(0.556 0 0)",
+      "lb-p3": "oklch(0.708 0 0)"
+    },
+    "dark": {
+      "lb-open": "oklch(0.828 0.189 84.429)",
+      "lb-open-foreground": "oklch(0.205 0 0)",
+      "lb-triaged": "oklch(0.828 0.189 84.429)",
+      "lb-triaged-foreground": "oklch(0.205 0 0)",
+      "lb-in-progress": "oklch(0.707 0.165 254.624)",
+      "lb-in-progress-foreground": "oklch(0.205 0 0)",
+      "lb-fixed": "oklch(0.765 0.177 163.223)",
+      "lb-fixed-foreground": "oklch(0.205 0 0)",
+      "lb-verified": "oklch(0.765 0.177 163.223)",
+      "lb-verified-foreground": "oklch(0.205 0 0)",
+      "lb-wontfix": "oklch(0.707 0.022 261.325)",
+      "lb-wontfix-foreground": "oklch(0.205 0 0)",
+      "lb-p0": "oklch(0.704 0.191 22.216)",
+      "lb-p1": "oklch(0.828 0.189 84.429)",
+      "lb-p2": "oklch(0.708 0 0)",
+      "lb-p3": "oklch(0.556 0 0)"
+    }
+  },
+  "docs": "Pairs with the loopback-widget item. Use the tokens directly (background: var(--lb-verified)) or through Tailwind arbitrary values (bg-[var(--lb-verified)]). Status names match the Loopback MCP bus exactly, so a badge coloured by var(--lb-{status}) always agrees with the queue.",
+  "categories": [
+    "theme",
+    "feedback"
+  ],
+  "type": "registry:theme"
+}

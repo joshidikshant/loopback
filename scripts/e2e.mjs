@@ -269,15 +269,59 @@ async function main() {
   console.log("✅ reload: pin is green/verified with agent + PR attached — loop closed visibly");
 
   // 6. Widget hardening (regressions found dogfooding on a real Next.js site)
-  log("hardening: dark color-scheme");
-  const btnColor = await page.evaluate(() => {
+  log("hardening: dark color-scheme + host token isolation");
+  const isolation = await page.evaluate(() => {
+    // A hostile host page, in the two distinct ways it can reach us:
+    //  (a) inheritance from :root — blocked by declaring our own tokens;
+    //  (b) a rule TARGETING the shadow host element — this one beats :host,
+    //      because normal declarations from the outer encapsulation context
+    //      win regardless of specificity. (b) is why tokens live on the
+    //      internal .lb-root wrapper, and it is the regression to guard.
     document.documentElement.style.colorScheme = "dark";
+    document.documentElement.style.setProperty("--primary", "hotpink");
+    document.documentElement.style.setProperty("--background", "hotpink");
+    document.documentElement.style.setProperty("--radius", "999px");
+    const hostile = document.createElement("style");
+    hostile.textContent =
+      "#loopback-widget-host{--lb-bg:hotpink;--lb-fg:hotpink;--lb-primary:hotpink;" +
+      "--lb-primary-fg:hotpink;--lb-border:hotpink;color-scheme:dark}" +
+      "div{--lb-muted:hotpink}*{--lb-on-status:hotpink}";
+    document.head.appendChild(hostile);
     const root = document.querySelector("#loopback-widget-host").shadowRoot;
-    return getComputedStyle(root.querySelector(".pinbtn")).color;
+    const btn = root.querySelector(".pinbtn");
+    const cs = getComputedStyle(btn);
+    // Computed colors serialize as oklch() here, so resolve to RGB by letting
+    // the canvas parse them — works for any CSS color function.
+    const probe = document.createElement("canvas").getContext("2d");
+    const parse = (c) => {
+      probe.fillStyle = "#000";
+      probe.fillStyle = c;
+      probe.fillRect(0, 0, 1, 1);
+      const d = probe.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    };
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const fg = parse(cs.color);
+    const bg = parse(cs.backgroundColor);
+    const L1 = lum(fg);
+    const L2 = lum(bg);
+    const contrast = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+    return { color: cs.color, background: cs.backgroundColor, contrast };
   });
   assert(
-    btnColor === "rgb(17, 17, 17)",
-    `widget controls keep explicit colors under color-scheme:dark (got ${btnColor})`,
+    isolation.contrast >= 4.5,
+    `widget control text stays legible under a dark, token-defining host (contrast ${isolation.contrast.toFixed(2)}:1, fg ${isolation.color} on ${isolation.background})`,
+  );
+  assert(
+    !isolation.color.includes("255, 105, 180") &&
+      !isolation.background.includes("255, 105, 180"),
+    "host page's --primary/--background did not leak through the shadow boundary",
   );
 
   log("hardening: semantic-class selectors");

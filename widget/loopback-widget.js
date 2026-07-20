@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.3.1 (MIT)
+ * Loopback capture widget v0.5.0 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -221,50 +221,128 @@
   var host = document.createElement("div");
   host.id = "loopback-widget-host";
   var root = host.attachShadow({ mode: "open" });
-  root.innerHTML =
-    "<style>" +
+  // ---------- design tokens (Loopback Design System v0) ----------
+  // The shadcn token VALUES, declared on an INTERNAL wrapper (.lb-root) under
+  // an --lb- prefix. Three facts, each verified in a real browser, force this
+  // exact shape:
+  //
+  // 1. Custom properties pierce shadow boundaries, and `all: initial` does NOT
+  //    reset them (the `all` shorthand excludes custom properties by spec). So
+  //    an undeclared token silently inherits the host page's value.
+  // 2. `:host` is NOT sufficient to stop that. Per CSS Cascade's encapsulation
+  //    ordering, a NORMAL declaration from the outer document wins over the
+  //    inner context regardless of specificity — so a host-page rule that
+  //    targets the host element (`#loopback-widget-host{--lb-primary:…}`, or
+  //    even `div{color-scheme:dark}`) overrides anything we put on :host.
+  //    Measured: it does, and it is how the old white-on-white bug got in.
+  // 3. An element the outer page cannot select is immune. Nothing outside can
+  //    match `.lb-root` inside our shadow tree, and an own-element declaration
+  //    always beats an inherited one. `display:contents` keeps the wrapper out
+  //    of layout so the fixed-position children are unaffected.
+  //
+  // The widget also owns its theme deliberately: it follows the VIEWER's
+  // prefers-color-scheme, never the host page's palette, so a feedback tool
+  // stays recognisable and legible on every site instead of camouflaging.
+  var TOKENS =
     ":host{all:initial}" +
-    "*{box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}" +
-    ".fab{position:fixed;bottom:18px;right:18px;z-index:2147483000;background:#111;color:#fff;border:none;border-radius:999px;padding:10px 16px;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25)}" +
-    ".fab.pinmode{background:#1d4ed8}" +
-    ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:290px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;box-shadow:0 10px 32px rgba(0,0,0,.18);padding:12px;display:none;color:#111}" +
+    ".lb-root{display:contents;color-scheme:light;" +
+    "--lb-bg:oklch(1 0 0);--lb-fg:oklch(0.145 0 0);" +
+    "--lb-muted:oklch(0.97 0 0);--lb-muted-fg:oklch(0.556 0 0);" +
+    "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.922 0 0);" +
+    "--lb-primary:oklch(0.205 0 0);--lb-primary-fg:oklch(0.985 0 0);" +
+    "--lb-ring:oklch(0.708 0 0);--lb-radius:0.625rem;" +
+    "--lb-open:oklch(0.555 0.163 48.998);--lb-triaged:oklch(0.555 0.163 48.998);" +
+    "--lb-in-progress:oklch(0.488 0.243 264.376);" +
+    "--lb-fixed:oklch(0.508 0.118 165.612);--lb-verified:oklch(0.508 0.118 165.612);" +
+    "--lb-wontfix:oklch(0.551 0.027 264.364);--lb-on-status:oklch(0.985 0 0);" +
+    "--lb-highlight:oklch(0.488 0.243 264.376);" +
+    "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.18);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.22);" +
+    "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.2);" +
+    "--lb-font:system-ui,-apple-system,'Segoe UI',sans-serif}" +
+    "@media (prefers-color-scheme:dark){.lb-root{color-scheme:dark;" +
+    "--lb-bg:oklch(0.205 0 0);--lb-fg:oklch(0.985 0 0);" +
+    "--lb-muted:oklch(0.269 0 0);--lb-muted-fg:oklch(0.708 0 0);" +
+    "--lb-border:oklch(1 0 0/15%);--lb-input:oklch(1 0 0/20%);" +
+    "--lb-primary:oklch(0.922 0 0);--lb-primary-fg:oklch(0.205 0 0);" +
+    "--lb-ring:oklch(0.556 0 0);" +
+    "--lb-open:oklch(0.828 0.189 84.429);--lb-triaged:oklch(0.828 0.189 84.429);" +
+    "--lb-in-progress:oklch(0.707 0.165 254.624);" +
+    "--lb-fixed:oklch(0.765 0.177 163.223);--lb-verified:oklch(0.765 0.177 163.223);" +
+    "--lb-wontfix:oklch(0.707 0.022 261.325);--lb-on-status:oklch(0.205 0 0);" +
+    "--lb-highlight:oklch(0.707 0.165 254.624);" +
+    "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.5);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.55);" +
+    "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.6)}}";
+
+  var RADIUS_MD = "calc(var(--lb-radius) * 0.8)";
+  var RADIUS_SM = "calc(var(--lb-radius) * 0.6)";
+
+  // Style is set as textContent on a <style> element, and the shell is built
+  // with DOM calls — no innerHTML anywhere the host page can reach.
+  var styleEl = document.createElement("style");
+  styleEl.textContent =
+    TOKENS +
+    "*{box-sizing:border-box;font-family:var(--lb-font)}" +
+    ".fab{position:fixed;bottom:18px;right:18px;z-index:2147483000;background:var(--lb-primary);color:var(--lb-primary-fg);border:none;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;box-shadow:var(--lb-shadow-md)}" +
+    ".fab:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
+    ".fab.pinmode{background:var(--lb-in-progress);color:var(--lb-on-status)}" +
+    ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:290px;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
     ".panel.open{display:block}" +
-    ".panel h3{margin:0 0 8px;font-size:13px}" +
-    ".panel button{width:100%;margin:4px 0;padding:8px;border-radius:8px;border:1px solid #d4d4d8;background:#fafafa;cursor:pointer;font-size:13px}" +
-    ".panel button:hover{background:#f0f0f1}" +
+    ".panel h3{margin:0 0 8px;font-size:13px;font-weight:600}" +
+    ".panel button{width:100%;margin:4px 0;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
+    ".panel button:hover{background:var(--lb-muted)}" +
     ".pinlist{margin:8px 0 0;max-height:180px;overflow:auto;font-size:12px}" +
-    ".pinrow{padding:6px;border-radius:6px;border:1px solid #eee;margin:4px 0}" +
-    ".badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;color:#fff;margin-right:6px}" +
-    ".b-open{background:#b45309}.b-in_progress{background:#1d4ed8}.b-fixed{background:#047857}.b-verified{background:#047857}.b-wontfix{background:#6b7280}" +
-    ".hl{position:fixed;z-index:2147482998;pointer-events:none;border:2px solid #1d4ed8;border-radius:4px;background:rgba(29,78,216,.08)}" +
-    ".form{position:fixed;z-index:2147483001;width:300px;max-height:min(72vh,460px);overflow:auto;background:#fff;border:1px solid #e5e5e5;border-radius:12px;box-shadow:0 10px 32px rgba(0,0,0,.2);padding:12px;color:#111}" +
-    ".form input,.form textarea,.form select{width:100%;margin:3px 0 8px;padding:7px;border:1px solid #d4d4d8;border-radius:7px;font-size:13px}" +
+    ".pinrow{padding:6px;border-radius:" + RADIUS_SM + ";border:1px solid var(--lb-border);margin:4px 0;color:var(--lb-fg)}" +
+    ".pinrow small{color:var(--lb-muted-fg)}" +
+    ".badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;color:var(--lb-on-status);margin-right:6px}" +
+    ".b-open{background:var(--lb-open)}.b-triaged{background:var(--lb-triaged)}" +
+    ".b-in_progress{background:var(--lb-in-progress)}.b-fixed{background:var(--lb-fixed)}" +
+    ".b-verified{background:var(--lb-verified)}.b-wontfix{background:var(--lb-wontfix)}" +
+    ".hl{position:fixed;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
+    ".form{position:fixed;z-index:2147483001;width:300px;max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
+    ".form input,.form textarea,.form select{width:100%;margin:3px 0 8px;padding:7px;border:1px solid var(--lb-input);border-radius:" + RADIUS_MD + ";font-size:13px;background:var(--lb-bg);color:var(--lb-fg);font-family:inherit}" +
+    ".form input:focus-visible,.form textarea:focus-visible,.form select:focus-visible{outline:2px solid var(--lb-ring);outline-offset:-1px}" +
     ".form textarea{height:52px;resize:vertical}" +
-    ".form label{font-size:11px;color:#555}" +
+    ".form label{font-size:11px;font-weight:500;color:var(--lb-muted-fg)}" +
+    ".form .note-ctx{color:var(--lb-fixed)}.form .note-net{color:var(--lb-open)}" +
     ".row{display:flex;gap:6px}.row>*{flex:1}" +
     ".actions{display:flex;gap:8px;margin-top:4px}" +
-    ".actions .primary{background:#111;color:#fff;border:none}" +
-    ".actions button{flex:1;padding:8px;border-radius:8px;border:1px solid #d4d4d8;background:#fafafa;cursor:pointer;font-size:13px}" +
-    ".pin{position:absolute;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;color:#fff;font-size:11px;line-height:22px;text-align:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);transform:rotate(0deg)}" +
-    ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:#111;color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:320px}" +
+    ".actions button{flex:1;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
+    ".actions button:hover{background:var(--lb-muted)}" +
+    ".actions .primary{background:var(--lb-primary);color:var(--lb-primary-fg);border-color:transparent}" +
+    ".pin{position:absolute;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-on-status);font-size:11px;font-weight:600;line-height:22px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm)}" +
+    ".pin.b-open{background:var(--lb-open)}.pin.b-triaged{background:var(--lb-triaged)}" +
+    ".pin.b-in_progress{background:var(--lb-in-progress)}.pin.b-fixed{background:var(--lb-fixed)}" +
+    ".pin.b-verified{background:var(--lb-verified)}.pin.b-wontfix{background:var(--lb-wontfix)}" +
+    ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:var(--lb-primary);color:var(--lb-primary-fg);padding:9px 14px;border-radius:" + RADIUS_MD + ";font-size:12.5px;box-shadow:var(--lb-shadow-md);max-width:320px}" +
     ".pin.pulse{animation:lbpulse 1.1s ease-out 3}" +
-    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring,rgba(17,17,17,.45))}to{box-shadow:0 0 0 13px rgba(0,0,0,0)}}" +
-    // The widget owns its scheme: host pages setting color-scheme:dark must not
-    // flip UA control colors inside the shadow root (white-on-white buttons).
-    ".panel,.form,.toast{color-scheme:light}" +
-    ".panel button,.actions button,.form input,.form textarea,.form select{color:#111}" +
-    ".form input,.form textarea,.form select{background:#fff}" +
-    "</style>" +
-    '<button class="fab" part="fab">✦ Feedback</button>' +
-    '<div class="panel"><h3>Loopback — ' +
-    PROJECT.replace(/</g, "&lt;") +
-    "</h3>" +
-    '<button class="pinbtn">📍 Pin feedback on an element</button>' +
-    '<div class="pinlist"></div></div>';
-  var fab = root.querySelector(".fab");
-  var panel = root.querySelector(".panel");
-  var pinBtn = root.querySelector(".pinbtn");
-  var pinList = root.querySelector(".pinlist");
+    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring)}to{box-shadow:0 0 0 13px rgb(0 0 0/0)}}";
+  root.appendChild(styleEl);
+
+  function mk(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  // Every widget node lives inside `ui` (.lb-root), never directly on the
+  // shadow root: the wrapper is what carries the tokens, and it is the only
+  // element the host page has no way to select.
+  var ui = mk("div", "lb-root");
+  root.appendChild(ui);
+
+  var fab = mk("button", "fab", "✦ Feedback");
+  fab.setAttribute("part", "fab");
+  var panel = mk("div", "panel");
+  // textContent, not string concatenation: the project slug comes from the
+  // host page's script tag and never gets parsed as markup.
+  panel.appendChild(mk("h3", null, "Loopback — " + PROJECT));
+  var pinBtn = mk("button", "pinbtn", "📍 Pin feedback on an element");
+  var pinList = mk("div", "pinlist");
+  panel.appendChild(pinBtn);
+  panel.appendChild(pinList);
+  ui.appendChild(fab);
+  ui.appendChild(panel);
 
   function mount() {
     document.body.appendChild(host);
@@ -293,7 +371,7 @@
     el.style.bottom = 70 + toastCount * 44 + "px";
     toastCount++;
     el.textContent = msg;
-    root.appendChild(el);
+    ui.appendChild(el);
     setTimeout(function () {
       el.remove();
       toastCount = Math.max(0, toastCount - 1);
@@ -310,7 +388,7 @@
     fab.textContent = "✕ Cancel pin";
     highlight = document.createElement("div");
     highlight.className = "hl";
-    root.appendChild(highlight);
+    ui.appendChild(highlight);
     document.addEventListener("mousemove", onMove, true);
     document.addEventListener("click", onPick, true);
   }
@@ -359,41 +437,66 @@
     form.style.left = Math.max(8, Math.min(x, window.innerWidth - 320)) + "px";
     form.style.top =
       Math.max(8, Math.min(y + 10, window.innerHeight - Math.min(window.innerHeight * 0.72, 460) - 20)) + "px";
-    form.innerHTML =
-      "<label>Title</label><input class='f-title' placeholder='What is wrong here?'>" +
-      "<label>What happened</label><textarea class='f-got'></textarea>" +
-      "<label>What you expected</label><textarea class='f-want'></textarea>" +
-      "<div class='row'><div><label>Type</label><select class='f-type'>" +
-      ["ui", "backend", "usage", "ux"]
-        .map(function (t) {
-          return (
-            "<option value='" + t + "'" + (t === guessType ? " selected" : "") + ">" + t + "</option>"
-          );
-        })
-        .join("") +
-      "</select></div><div><label>Severity</label><select class='f-sev'>" +
-      ["p0", "p1", "p2", "p3"]
-        .map(function (s) {
-          return "<option" + (s === "p2" ? " selected" : "") + ">" + s + "</option>";
-        })
-        .join("") +
-      "</select></div></div>" +
-      (ctx
-        ? "<label style='color:#047857'>✓ AI/automation context attached (" +
-          Object.keys(ctx).slice(0, 3).join(", ") +
-          ")</label>"
-        : "") +
-      (failedNet.length
-        ? "<label style='color:#b45309'>✓ " +
-          failedNet.length +
-          " failed request(s) attached (latest: " +
-          (failedNet[failedNet.length - 1].status || "ERR") +
-          " " +
-          failedNet[failedNet.length - 1].url.split("?")[0].slice(-40) +
-          ")</label>"
-        : "") +
-      "<div class='actions'><button class='cancel'>Cancel</button><button class='primary send'>Send</button></div>";
-    root.appendChild(form);
+    // Built with DOM calls rather than innerHTML: the context keys and request
+    // URLs below come from the host page, and must never be parsed as markup.
+    function field(labelText, node) {
+      form.appendChild(mk("label", null, labelText));
+      form.appendChild(node);
+      return node;
+    }
+    function select(className, options, selected) {
+      var sel = mk("select", className);
+      options.forEach(function (value) {
+        var opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = value;
+        if (value === selected) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      return sel;
+    }
+    var titleInput = field("Title", mk("input", "f-title"));
+    titleInput.placeholder = "What is wrong here?";
+    field("What happened", mk("textarea", "f-got"));
+    field("What you expected", mk("textarea", "f-want"));
+
+    var row = mk("div", "row");
+    var typeCell = mk("div");
+    typeCell.appendChild(mk("label", null, "Type"));
+    typeCell.appendChild(select("f-type", ["ui", "backend", "usage", "ux"], guessType));
+    var sevCell = mk("div");
+    sevCell.appendChild(mk("label", null, "Severity"));
+    sevCell.appendChild(select("f-sev", ["p0", "p1", "p2", "p3"], "p2"));
+    row.appendChild(typeCell);
+    row.appendChild(sevCell);
+    form.appendChild(row);
+
+    if (ctx) {
+      form.appendChild(
+        mk(
+          "label",
+          "note-ctx",
+          "✓ AI/automation context attached (" + Object.keys(ctx).slice(0, 3).join(", ") + ")",
+        ),
+      );
+    }
+    if (failedNet.length) {
+      var last = failedNet[failedNet.length - 1];
+      form.appendChild(
+        mk(
+          "label",
+          "note-net",
+          "✓ " + failedNet.length + " failed request(s) attached (latest: " +
+            (last.status || "ERR") + " " + last.url.split("?")[0].slice(-40) + ")",
+        ),
+      );
+    }
+
+    var actions = mk("div", "actions");
+    actions.appendChild(mk("button", "cancel", "Cancel"));
+    actions.appendChild(mk("button", "primary send", "Send"));
+    form.appendChild(actions);
+    ui.appendChild(form);
     form.querySelector(".f-title").focus();
     form.querySelector(".cancel").addEventListener("click", function () {
       form.remove();
@@ -476,7 +579,7 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.3.1",
+    version: "0.5.0",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
@@ -558,19 +661,9 @@
       pin.title = "[" + item.status + "] " + item.title;
       pin.style.left = window.scrollX + r.right - 10 + "px";
       pin.style.top = window.scrollY + r.top - 10 + "px";
-      var colors = {
-        open: "#b45309",
-        triaged: "#b45309",
-        in_progress: "#1d4ed8",
-        fixed: "#047857",
-        verified: "#047857",
-        wontfix: "#6b7280",
-      };
-      pin.style.background = colors[item.status] || "#111";
-      if (changedIds[item.id]) {
-        pin.style.setProperty("--lb-ring", (colors[item.status] || "#111111") + "88");
-        pin.classList.add("pulse");
-      }
+      // Colour comes from the .b-<status> class, not an inline style, so the
+      // status palette lives in one place and follows light/dark with it.
+      if (changedIds[item.id]) pin.classList.add("pulse");
       pin.addEventListener("click", function () {
         toast(
           "#" + item.id + " · " + item.status +
@@ -578,7 +671,7 @@
             (item.links && item.links.pr_url ? " · PR linked" : "")
         );
       });
-      root.appendChild(pin);
+      ui.appendChild(pin);
       pinEls.push(pin);
     });
     // Pulse once per announcement — scroll/resize re-renders must not replay it.
@@ -586,18 +679,23 @@
   }
 
   function renderPinList(items) {
-    pinList.innerHTML = items.length
-      ? items
-          .map(function (i) {
-            return (
-              "<div class='pinrow'><span class='badge b-" + i.status + "'>" + i.status + "</span>" +
-              i.title.replace(/</g, "&lt;") +
-              (i.assignee_agent ? " <small>· " + i.assignee_agent + "</small>" : "") +
-              "</div>"
-            );
-          })
-          .join("")
-      : "<div style='color:#777;padding:6px'>No feedback on this page yet.</div>";
+    pinList.textContent = "";
+    if (!items.length) {
+      var empty = mk("div", "pinrow", "No feedback on this page yet.");
+      empty.style.border = "0";
+      pinList.appendChild(empty);
+      return;
+    }
+    items.forEach(function (i) {
+      var rowEl = mk("div", "pinrow");
+      rowEl.appendChild(mk("span", "badge b-" + i.status, i.status));
+      // Titles are reporter-authored text — appended as text, never markup.
+      rowEl.appendChild(document.createTextNode(i.title));
+      if (i.assignee_agent) {
+        rowEl.appendChild(mk("small", null, " · " + i.assignee_agent));
+      }
+      pinList.appendChild(rowEl);
+    });
   }
 
   var rafPending = false;

@@ -1,0 +1,231 @@
+/**
+ * Loopback Design System v0 — components
+ *
+ * Vanilla CSS recipes for the shadcn component vocabulary. No Tailwind, no
+ * build step, no React — but the class names and variants are the ones a
+ * shadcn user already knows (`lb-btn` + `--outline`/`--ghost`/`--secondary`,
+ * `lb-badge`, `lb-card`, `lb-table`, `lb-input`).
+ *
+ * Every value comes from tokens.css. Nothing here hardcodes a color, so a
+ * consuming project that already defines the shadcn variables gets these
+ * components in its own palette for free.
+ *
+ * Classes are `lb-` prefixed: this stylesheet is designed to be dropped into
+ * pages that may already have their own `.btn`/`.badge`/`.card`.
+ */
+
+.lb-body {
+  font-family: var(--lb-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
+  margin: 0;
+}
+
+/* ---- typography ------------------------------------------------------ */
+.lb-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.lb-muted {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.lb-mono {
+  font-family: var(--lb-font-mono);
+  font-size: 0.8125rem;
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- button ---------------------------------------------------------- */
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.lb-btn:hover { opacity: 0.9; }
+.lb-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.lb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.lb-btn--secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.lb-btn--outline {
+  background: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.lb-btn--outline:hover { background: var(--accent); opacity: 1; }
+.lb-btn--ghost {
+  background: transparent;
+  color: var(--foreground);
+}
+.lb-btn--ghost:hover { background: var(--accent); opacity: 1; }
+.lb-btn--destructive {
+  background: var(--destructive);
+  color: oklch(0.985 0 0);
+}
+.lb-btn--sm { padding: 0.35rem 0.55rem; font-size: 0.75rem; }
+.lb-btn--lg { padding: 0.65rem 1rem; font-size: 0.875rem; }
+.lb-btn--block { width: 100%; }
+
+/* ---- badge ----------------------------------------------------------- */
+.lb-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.lb-badge--outline {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+/* Status badges — the product's semantic vocabulary. */
+.lb-badge--open       { background: var(--lb-open);        color: var(--lb-open-foreground); }
+.lb-badge--triaged    { background: var(--lb-triaged);     color: var(--lb-triaged-foreground); }
+.lb-badge--in_progress{ background: var(--lb-in-progress); color: var(--lb-in-progress-foreground); }
+.lb-badge--fixed      { background: var(--lb-fixed);       color: var(--lb-fixed-foreground); }
+.lb-badge--verified   { background: var(--lb-verified);    color: var(--lb-verified-foreground); }
+.lb-badge--wontfix    { background: var(--lb-wontfix);     color: var(--lb-wontfix-foreground); }
+
+/* Severity chips read as text, not blocks — they rank, they don't shout. */
+.lb-sev { font-family: var(--lb-font-mono); font-size: 0.75rem; font-weight: 600; }
+.lb-sev--p0 { color: var(--lb-p0); }
+.lb-sev--p1 { color: var(--lb-p1); }
+.lb-sev--p2 { color: var(--lb-p2); }
+.lb-sev--p3 { color: var(--lb-p3); }
+
+/* ---- card ------------------------------------------------------------ */
+.lb-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+
+/* ---- table ----------------------------------------------------------- */
+.lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.lb-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.lb-table td {
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.lb-table tbody tr:hover { background: var(--muted); }
+.lb-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ---- form controls --------------------------------------------------- */
+.lb-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  margin-bottom: 0.2rem;
+}
+.lb-input,
+.lb-textarea,
+.lb-select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.5rem;
+}
+.lb-input:focus-visible,
+.lb-textarea:focus-visible,
+.lb-select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+.lb-textarea { min-height: 52px; resize: vertical; }
+
+/* ---- surfaces that float -------------------------------------------- */
+.lb-popover {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lb-shadow-lg);
+  padding: 0.75rem;
+}
+.lb-toast {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius-md);
+  box-shadow: var(--lb-shadow-md);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.78125rem;
+  max-width: 320px;
+}
+
+/* ---- Loopback-specific: the pin and its highlight -------------------- */
+.lb-pin {
+  width: var(--lb-pin-size);
+  height: var(--lb-pin-size);
+  border-radius: var(--lb-pin-radius);
+  color: oklch(0.985 0 0);
+  font-family: var(--lb-font);
+  font-size: 11px;
+  line-height: var(--lb-pin-size);
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--lb-shadow-sm);
+}
+.lb-pin--open        { background: var(--lb-open); }
+.lb-pin--triaged     { background: var(--lb-triaged); }
+.lb-pin--in_progress { background: var(--lb-in-progress); }
+.lb-pin--fixed       { background: var(--lb-fixed); }
+.lb-pin--verified    { background: var(--lb-verified); }
+.lb-pin--wontfix     { background: var(--lb-wontfix); }
+
+.lb-highlight {
+  border: 2px solid var(--lb-highlight);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--lb-highlight) 10%, transparent);
+  pointer-events: none;
+}

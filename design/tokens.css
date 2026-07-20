@@ -1,0 +1,130 @@
+/**
+ * Loopback Design System v0 — tokens
+ *
+ * Implements the shadcn/ui theme contract verbatim (32 semantic variables,
+ * oklch, `.dark` class), then layers Loopback's own domain tokens on top.
+ *
+ * Why the shadcn contract, in a project with zero UI dependencies:
+ * shadcn is not a component library you install — it is a convention you own.
+ * Adopting its variable NAMES means this stylesheet drops into any
+ * shadcn / Tailwind / v0.dev project and themes itself from that project's
+ * palette, with no build step and no React. Loopback keeps its zero-dependency
+ * promise; consumers keep their theme.
+ *
+ * Domain tokens are prefixed `--lb-` so they can never collide with a host
+ * project's variables in either direction.
+ *
+ * Light is the default; `.dark` on any ancestor flips the theme (shadcn's
+ * class-based mechanism, not a media query — so a UI can offer a toggle).
+ */
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  /* Derived radius scale — shadcn's steps verbatim. Note these are
+     MULTIPLICATIVE (the older subtractive `calc(var(--radius) - 4px)` form is
+     the pre-v4 convention and drifts from current shadcn output). */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  /* ---- Loopback domain tokens ---------------------------------------- */
+  /* Feedback status. These are the product's core semantic colors: a pin,
+     a badge, and a queue row must all agree on what "verified" looks like. */
+  --lb-open: oklch(0.555 0.163 48.998);
+  --lb-open-foreground: oklch(0.985 0 0);
+  --lb-triaged: oklch(0.555 0.163 48.998);
+  --lb-triaged-foreground: oklch(0.985 0 0);
+  --lb-in-progress: oklch(0.488 0.243 264.376);
+  --lb-in-progress-foreground: oklch(0.985 0 0);
+  --lb-fixed: oklch(0.508 0.118 165.612);
+  --lb-fixed-foreground: oklch(0.985 0 0);
+  --lb-verified: oklch(0.508 0.118 165.612);
+  --lb-verified-foreground: oklch(0.985 0 0);
+  --lb-wontfix: oklch(0.551 0.027 264.364);
+  --lb-wontfix-foreground: oklch(0.985 0 0);
+
+  /* Severity. p0 reuses destructive so "critical" reads the same everywhere. */
+  --lb-p0: oklch(0.577 0.245 27.325);
+  --lb-p1: oklch(0.666 0.179 58.318);
+  --lb-p2: oklch(0.556 0 0);
+  --lb-p3: oklch(0.708 0 0);
+
+  /* The pin: an anchor drawn on someone else's page. */
+  --lb-pin-size: 22px;
+  --lb-pin-radius: 999px 999px 999px 4px;
+  --lb-highlight: oklch(0.488 0.243 264.376);
+
+  /* Elevation — surfaces that float above an unknown host page. */
+  --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.18);
+  --lb-shadow-md: 0 4px 14px rgb(0 0 0 / 0.22);
+  --lb-shadow-lg: 0 10px 32px rgb(0 0 0 / 0.2);
+
+  --lb-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --lb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  /* Status colors lift in dark mode so they stay legible on a dark surface. */
+  --lb-open: oklch(0.828 0.189 84.429);
+  --lb-open-foreground: oklch(0.205 0 0);
+  --lb-triaged: oklch(0.828 0.189 84.429);
+  --lb-triaged-foreground: oklch(0.205 0 0);
+  --lb-in-progress: oklch(0.707 0.165 254.624);
+  --lb-in-progress-foreground: oklch(0.205 0 0);
+  --lb-fixed: oklch(0.765 0.177 163.223);
+  --lb-fixed-foreground: oklch(0.205 0 0);
+  --lb-verified: oklch(0.765 0.177 163.223);
+  --lb-verified-foreground: oklch(0.205 0 0);
+  --lb-wontfix: oklch(0.707 0.022 261.325);
+  --lb-wontfix-foreground: oklch(0.205 0 0);
+
+  --lb-p0: oklch(0.704 0.191 22.216);
+  --lb-p1: oklch(0.828 0.189 84.429);
+  --lb-p2: oklch(0.708 0 0);
+  --lb-p3: oklch(0.556 0 0);
+
+  --lb-highlight: oklch(0.707 0.165 254.624);
+  --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.5);
+  --lb-shadow-md: 0 4px 14px rgb(0 0 0 / 0.55);
+  --lb-shadow-lg: 0 10px 32px rgb(0 0 0 / 0.6);
+}

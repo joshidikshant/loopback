@@ -5,7 +5,53 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-20
+
+**Loopback Design System v0** — one token set behind both surfaces, in vanilla
+CSS speaking shadcn/ui's contract, plus a published shadcn registry. No React,
+no Tailwind, no build step added.
+
 ### Added
+- **`design/tokens.css`** — shadcn's semantic variables verbatim (oklch,
+  `.dark` class, multiplicative radius scale) plus Loopback's `--lb-*` domain
+  tokens for feedback status and severity. **`design/components.css`** —
+  vanilla recipes (`lb-btn` with variants, `lb-badge`, `lb-card`, `lb-table`,
+  `lb-input`, `lb-pin`) using only tokens, so the stylesheet themes itself from
+  a host project's palette. Rationale: [design/README.md](design/README.md).
+- **Published shadcn registry** (`registry.json` → `public/r/*.json`):
+  `loopback-theme` (status/severity tokens that add to a consumer's theme
+  rather than replacing it — the CLI also emits `@theme inline` mappings, so
+  `bg-lb-verified` works as a utility) and `loopback-widget` (the capture
+  widget itself). Installable from a static URL with no auth, and discoverable
+  by the **shadcn MCP** via a `@loopback` namespace in `components.json`.
+  Verified by installing both into a scratch consumer project.
+- **`/queue` item detail** — rows expand in place to the report, captured
+  context (failing requests with response bodies, run metadata, console),
+  linked change, and the full comment trail; plus a `GET /feedback/:id`
+  endpoint. Closes fb_mrsuxhpm. The page also gained a theme toggle that
+  resolves before first paint.
+- **`registry-gate`** (`npm run registry-gate`, wired into CI) — validates the
+  manifest structurally, asserts the built registry is byte-in-sync with the
+  source it ships, and catches non-root-relative `target` mistakes.
+
+### Fixed
+- **The widget could be restyled by its host page.** Custom properties pierce
+  shadow boundaries and `all: initial` does not reset them; worse, a *normal*
+  outer-document rule targeting the host element beats `:host` regardless of
+  specificity, so `#loopback-widget-host{…}` or even `div{color-scheme:dark}`
+  could override the widget — the same mechanism behind the original
+  white-on-white bug. Tokens now live on an internal `.lb-root` wrapper that
+  the outer page cannot select. E2E asserts ≥4.5:1 contrast under a hostile
+  host stylesheet.
+- **The widget built its UI with `innerHTML`**, interpolating host-page data
+  (context keys, request URLs, reporter-authored titles) into markup. The
+  shell, capture form, and pin list are now built with DOM calls and
+  `textContent`.
+- Widget dark mode: it follows the viewer's `prefers-color-scheme` rather than
+  forcing light, and pin colours come from CSS classes instead of inline
+  styles, so the status palette lives in exactly one place.
+
+### Added (self-integration, from the previous pass)
 - **Loopback is now its own reference integration.** `/queue` embeds the
   capture widget (`data-project=loopback`, endpoint derived from the request
   host so it works on localhost, a LAN `--host` bind, or behind a proxy) — you
