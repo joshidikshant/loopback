@@ -32,6 +32,93 @@ export const networkEntrySchema = z.object({
   ms: z.number().optional().describe("Duration in milliseconds"),
 });
 
+// ---------------------------------------------------------------------------
+// Output schemas
+//
+// The spec makes outputSchema optional, but declaring it turns a tool's return
+// value into a checked contract: "Servers MUST provide structured results that
+// conform to this schema", and clients SHOULD validate. That is worth having
+// here because `extra` is where this product's differentiator lives (captured
+// response bodies, LLM run metadata) and an agent has no way to know it exists
+// unless the contract says so.
+//
+// Optionality is load-bearing: anything the store can leave undefined must be
+// .optional() or the SDK will reject perfectly good responses at runtime.
+// ---------------------------------------------------------------------------
+
+export const changeLinksSchema = z.object({
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  commit: z.string().optional(),
+  pr_url: z.string().optional(),
+  diff_summary: z.string().optional(),
+});
+
+export const commentSchema = z.object({
+  id: z.number().int(),
+  created_at: z.string(),
+  author: z.string(),
+  body: z.string(),
+});
+
+/** One feedback item, exactly as the store returns it. */
+export const feedbackItemShape = {
+  id: z.string().describe("Feedback id, e.g. 'fb_mabc12_3f9a1c'"),
+  project: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  source: sourceEnum,
+  reporter: reporterEnum,
+  type: typeEnum,
+  severity: severityEnum,
+  title: z.string(),
+  body: z.string(),
+  route: z.string().optional(),
+  url: z.string().optional(),
+  dom_selector: z.string().optional(),
+  screenshot_path: z.string().optional(),
+  replay_url: z.string().optional(),
+  console: z.array(z.string()).describe("Console lines captured at report time"),
+  network: z
+    .array(networkEntrySchema)
+    .describe("Network calls captured at report time"),
+  repro_steps: z.array(z.string()),
+  status: statusEnum,
+  assignee_agent: z.string().optional().describe("Agent currently holding the claim"),
+  resolution: z.string().optional(),
+  links: changeLinksSchema.describe("Repo/branch/commit/PR of the fix"),
+  extra: z
+    .record(z.string(), z.unknown())
+    .describe(
+      "Free-form captured context. Read `extra.failed_responses` for failing requests with up to 2KB of response body, and `extra.context` for LLM/automation run metadata (run_id, model, trace_url).",
+    ),
+  comments: z.array(commentSchema).optional().describe("Full audit trail"),
+};
+
+export const feedbackItemSchema = z.object(feedbackItemShape);
+
+/** Paginated list envelope. */
+export const listResultShape = {
+  total: z.number().int().describe("Total matching the filters"),
+  count: z.number().int().describe("Items in this response"),
+  offset: z.number().int(),
+  items: z.array(feedbackItemSchema),
+  has_more: z.boolean(),
+  next_offset: z.number().int().optional().describe("Pass as offset for the next page"),
+};
+
+/** Queue counts by project and status. */
+export const statsResultShape = {
+  total: z.number().int(),
+  projects: z.array(
+    z.object({
+      project: z.string(),
+      by_status: z.record(z.string(), z.number().int()),
+      total: z.number().int(),
+    }),
+  ),
+};
+
 /** Shape for submitting a new feedback item (also validates HTTP POST /ingest bodies). */
 export const submitShape = {
   project: z

@@ -179,6 +179,31 @@ async function main(): Promise<void> {
   assert(notFound.includes("not found"), "not-found is actionable");
   console.log("✅ stats across projects + actionable not-found errors");
 
+  // 7. The tool contract: a mistyped argument must fail loudly.
+  // Zod strips unknown keys by default, which turned `sevrity: "p0"` into a
+  // silently-filed p2 that reported success — the agent believes it filed a
+  // critical item. Verified through the MCP Inspector before this was fixed.
+  const typo = await callExpectError("loopback_submit_feedback", {
+    project: "demo-web",
+    type: "ui",
+    title: "Typo guard",
+    sevrity: "p0",
+  } as unknown as Record<string, unknown>);
+  assert(
+    /unrecognized|validation/i.test(typo),
+    `a mistyped argument is rejected, not dropped (got: ${typo.slice(0, 80)})`,
+  );
+  const listed = await call("loopback_list_feedback", {
+    project: "demo-web",
+    response_format: "json",
+  });
+  const listedItems = (listed.structured as { items: { title: string }[] }).items;
+  assert(
+    !listedItems.some((i) => i.title === "Typo guard"),
+    "the rejected call filed nothing at all",
+  );
+  console.log("✅ strict tool inputs: a typo'd argument errors instead of filing the wrong thing");
+
   await client.close();
   console.log("\nALL SMOKE TESTS PASSED 🎉");
 }

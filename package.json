@@ -1,7 +1,7 @@
 {
   "name": "loopback-mcp-server",
-  "version": "0.7.0",
-  "description": "Loopback — a project-tagged feedback bus for coding agents (Claude Code, Codex, Gemini CLI) over MCP. Capture UI/backend/usage/UX feedback once; let any agent claim, fix, and write the change back.",
+  "version": "0.7.1",
+  "description": "Loopback \u2014 a project-tagged feedback bus for coding agents (Claude Code, Codex, Gemini CLI) over MCP. Capture UI/backend/usage/UX feedback once; let any agent claim, fix, and write the change back.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -12,8 +12,8 @@
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "smoke": "node dist/smoke-test.js",
-    "e2e": "node scripts/e2e.mjs",
+    "smoke": "npm run build && node dist/smoke-test.js",
+    "e2e": "npm run build && node scripts/e2e.mjs",
     "init-gate": "node scripts/init-gate.mjs",
     "registry-gate": "node scripts/registry-gate.mjs",
     "registry:build": "npx --yes shadcn@latest build ./registry.json --output ./public/r",

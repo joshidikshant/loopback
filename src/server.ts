@@ -2,13 +2,17 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { LoopbackStore } from "./store.js";
+import { z } from "zod";
 import {
   addCommentShape,
   claimShape,
+  feedbackItemShape,
   getShape,
   linkChangeShape,
+  listResultShape,
   listShape,
   resolveShape,
+  statsResultShape,
   statsShape,
   submitShape,
   updateStatusShape,
@@ -16,7 +20,7 @@ import {
 import { itemMarkdown, listMarkdown } from "./format.js";
 import type { FeedbackItem } from "./types.js";
 
-export const SERVER_VERSION = "0.7.0";
+export const SERVER_VERSION = "0.7.1";
 
 type ToolResult = {
   content: { type: "text"; text: string }[];
@@ -45,6 +49,20 @@ function itemJson(item: FeedbackItem): Record<string, unknown> {
   return item as unknown as Record<string, unknown>;
 }
 
+/**
+ * Tool inputs are STRICT: an unknown key is an error, not something to drop.
+ *
+ * Zod's default is to silently strip unknown keys, which turns an agent's typo
+ * into a quiet wrong answer — `sevrity: "p0"` filed a p2 and reported success
+ * (reproduced through the MCP Inspector). Strict objects also emit
+ * `additionalProperties: false` into the published JSON Schema, so a client can
+ * catch the mistake before the call is even made.
+ *
+ * The HTTP /ingest boundary deliberately stays permissive: an older hub must
+ * not reject a newer widget's payload. Different contract, different rule.
+ */
+const strict = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
+
 export function buildServer(store: LoopbackStore): McpServer {
   const server = new McpServer({
     name: "loopback-mcp-server",
@@ -64,7 +82,8 @@ Args: project (slug), type (ui|backend|usage|ux), title, and optionally body, se
 Returns the created item as JSON, including its generated id (fb_...). New items start with status 'open'.
 
 Example: file "Pay button dead on iOS Safari" with project='shop-web', type='ui', severity='p1', route='/checkout'.`,
-      inputSchema: submitShape,
+      inputSchema: strict(submitShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -93,7 +112,8 @@ Args (all optional): project, status (open|triaged|in_progress|fixed|verified|wo
 Returns items ordered most-severe first, then newest. Pagination metadata: total, count, offset, has_more, next_offset.
 
 Typical agent flow: loopback_list_feedback(project='X', status='open') → loopback_claim_feedback → fix → loopback_link_change → loopback_update_status(status='fixed').`,
-      inputSchema: listShape,
+      inputSchema: strict(listShape),
+      outputSchema: listResultShape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -121,7 +141,8 @@ Typical agent flow: loopback_list_feedback(project='X', status='open') → loopb
 Args: id (fb_...), response_format (markdown|json).
 
 Read this before starting a fix — it contains everything captured at report time.`,
-      inputSchema: getShape,
+      inputSchema: strict(getShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -148,7 +169,8 @@ Read this before starting a fix — it contains everything captured at report ti
 Args: id, agent (your name, e.g. 'claude-code', 'codex', 'gemini'), force (default false).
 
 On success the item's assignee_agent is set and status moves to 'in_progress' (from open/triaged). If another agent already holds the claim, this fails with a message naming the holder — pass force=true only if you intend to take over.`,
-      inputSchema: claimShape,
+      inputSchema: strict(claimShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -177,7 +199,8 @@ On success the item's assignee_agent is set and status moves to 'in_progress' (f
 Args: id, status, note (optional — recorded as a comment for the audit trail), author (default 'agent').
 
 Use 'fixed' after making the change; use loopback_resolve_feedback for final verified/wontfix closure.`,
-      inputSchema: updateStatusShape,
+      inputSchema: strict(updateStatusShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -199,7 +222,8 @@ Use 'fixed' after making the change; use loopback_resolve_feedback for final ver
       description: `Append a comment to a feedback item's discussion trail. Use for investigation notes, questions back to the reporter, or reasoning worth preserving.
 
 Args: id, author, body (markdown ok).`,
-      inputSchema: addCommentShape,
+      inputSchema: strict(addCommentShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -226,7 +250,8 @@ Args: id, author, body (markdown ok).`,
 Args: id, plus any of repo, branch, commit, pr_url, diff_summary. Provided fields merge into existing links.
 
 Call this right after committing the fix, before updating status to 'fixed'.`,
-      inputSchema: linkChangeShape,
+      inputSchema: strict(linkChangeShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -253,7 +278,8 @@ Call this right after committing the fix, before updating status to 'fixed'.`,
 Args: id, resolution ('verified' = the fix was confirmed against the running app, tests, or the relevant metric/replay; 'wontfix' = intentionally not addressing), note (optional closing comment).
 
 Prefer verifying before resolving: re-check the UI via your browser tools, or confirm the error/metric cleared, then call this.`,
-      inputSchema: resolveShape,
+      inputSchema: strict(resolveShape),
+      outputSchema: feedbackItemShape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -277,7 +303,8 @@ Prefer verifying before resolving: re-check the UI via your browser tools, or co
 Args: project (optional — omit for all projects).
 
 Returns { total, projects: [{ project, by_status, total }] }.`,
-      inputSchema: statsShape,
+      inputSchema: strict(statsShape),
+      outputSchema: statsResultShape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,

@@ -5,6 +5,38 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-07-26
+
+MCP Inspector pass. Ran the official Inspector against the server, which
+surfaced one silent-failure bug and one missing half of the tool contract.
+
+### Fixed
+- **A mistyped tool argument was silently dropped instead of rejected.** Zod
+  strips unknown keys by default, so `loopback_submit_feedback(..., sevrity:
+  "p0")` filed a **p2** and reported success — the agent believes it filed a
+  critical item. Reproduced through the Inspector. Tool inputs are now strict
+  objects: the call fails with `unrecognized_keys` and files nothing.
+  `POST /ingest` deliberately stays permissive, because an older hub must not
+  reject a newer widget's payload — different contract, different rule. Both
+  halves are asserted.
+
+### Added
+- **`outputSchema` on all nine tools.** Previously zero were declared while
+  every tool returned `structuredContent` — legal per spec, but it left clients
+  unable to validate and gave agents no way to discover that `extra` carries
+  `failed_responses` and `context`, the fields the playbook tells them to read.
+  The schema now documents that explicitly. Verified conformance across the
+  cases that break output contracts: items with every optional unset, with and
+  without comments, `has_more` true and false, empty stats, resolved items, the
+  25k truncation path, and error results.
+- Tools now publish `additionalProperties: false`, so a client can catch a
+  mistyped argument before the call is made.
+
+### Changed
+- `npm run smoke` and `npm run e2e` build first. A stale `dist/` let a gate pass
+  green against code that no longer compiled — it happened while making this
+  change.
+
 ## [0.7.0] — 2026-07-20
 
 Tier A of the v0.6.0 review: the five defects that would each have broken the
