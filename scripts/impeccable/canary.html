@@ -1,0 +1,32 @@
+<!doctype html>
+<!--
+  Canary fixture for scripts/impeccable-gate.mjs. NOT part of the product.
+
+  This file deliberately contains one unambiguous anti-pattern: a thick coloured
+  left border on a card, which Impeccable's `side-tab` rule calls "the most
+  recognizable tell of AI-generated UIs".
+
+  The gate scans this file and REQUIRES a finding. That inverted assertion is
+  the point: `npx impeccable detect` exits 0 when it scans nothing at all, so a
+  clean run proves nothing on its own — a typo'd path, a moved directory or an
+  over-broad ignore would all report success while checking zero files. If the
+  canary ever comes back clean, the detector is not actually looking, and the
+  gate fails instead of waving the build through.
+
+  Keep the violation here obvious and keep it out of the product scan paths.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Impeccable canary — deliberately contains slop</title>
+  <style>
+    body { font: 16px/1.6 system-ui, sans-serif; color: #16181d; background: #fff; }
+    .callout { border-left: 4px solid #6366f1; padding: 1rem 1.25rem; background: #f8f8fb; }
+  </style>
+</head>
+<body>
+  <div class="callout">
+    <p>If the gate reports no finding on this file, the detector is not scanning.</p>
+  </div>
+</body>
+</html>

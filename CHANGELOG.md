@@ -5,6 +5,35 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Impeccable design gate** (`scripts/impeccable-gate.mjs`, wired into CI) —
+  runs [Impeccable](https://github.com/pbakaus/impeccable)'s 46-rule detector
+  over the shipped UI (`public/dashboard`, `widget/`, `demo/`, `design/`) and
+  fails the build on any anti-pattern.
+  - It is a script rather than a one-line CI step because **a bare
+    `impeccable detect` exits 0 having scanned nothing** — a wrong path or a
+    moved directory reports success. The gate existence-checks every target and
+    scans a **canary fixture** (`scripts/impeccable/canary.html`) that is
+    *required* to trip; if the canary comes back clean the detector is not
+    looking, and the gate fails instead of reporting green. Both failure paths
+    are verified, not assumed.
+  - The detector is a **version-pinned devDependency**, so the rule set changes
+    only via a visible dependency bump — CI cannot go red overnight on an
+    upstream rule.
+
+### Fixed
+- **Side-tab accent border on the comment trail** (`ItemDetail.tsx`) — the
+  thick coloured left border Impeccable calls the most recognisable tell of
+  AI-generated UI. The trail is a log, so it is now a divided list.
+- **Flat type hierarchy in `demo/index.html`** — four sizes within a 1.18 ratio
+  read as no hierarchy at all; now three sizes at 12.8 / 16 / 28px.
+
+### Notes
+- One finding is suppressed with a stated reason in `.impeccable/config.json`:
+  `layout-transition` in `public/dashboard/assets/*.js` is
+  [sonner](https://sonner.emilkowal.ski/)'s bundled `transition: height`, not
+  Loopback source. The rule stays live everywhere else.
+
 ## [0.8.0] — 2026-07-26
 
 The dashboard becomes a real app. Driven entirely by DJ using it on localhost

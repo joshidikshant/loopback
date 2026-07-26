@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "public/dashboard/assets/*.js"
+        ],
+        "createdAt": "2026-07-26T15:16:10.884Z",
+        "reason": "Vendored: the transition:height comes from sonner's bundled stylesheet (node_modules/sonner/dist/styles.css: 'transition: transform 400ms, opacity 400ms, height'), not from Loopback source. Scoped to the built bundle only — the rule stays live on dashboard/src, widget/ and demo/."
+      }
+    ]
+  }
+}

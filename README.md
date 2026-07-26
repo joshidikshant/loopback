@@ -309,13 +309,23 @@ bearer token.
 
 ```bash
 npm run build
-npm run smoke       # real MCP client over stdio: 9 tools, full loop, atomic-claim conflict
-npm run e2e         # Playwright: pin capture → 500-body & run-context assertions → agent over MCP-HTTP → green pins
-npm run init-gate   # init renderings ×3 agents, byte-level idempotence, merge safety
+npm run smoke            # real MCP client over stdio: 10 tools, full loop, atomic-claim conflict
+npm run e2e              # Playwright: pin capture → 500-body & run-context assertions → agent over MCP-HTTP → green pins
+npm run init-gate        # init renderings ×3 agents, byte-level idempotence, merge safety
+npm run registry-gate    # the published shadcn registry still resolves and installs
+npm run dashboard-gate   # the committed dashboard build matches dashboard/src
+npm run impeccable-gate  # design anti-patterns in the shipped UI (canary-verified)
 ```
 
-CI runs all three on every push (`LOOPBACK_E2E_CHROMIUM` overrides the
+CI runs all of them on every push (`LOOPBACK_E2E_CHROMIUM` overrides the
 browser binary if needed).
+
+Two of these are built to resist passing for the wrong reason, because both
+underlying tools fail open: a stale dashboard build serves happily with no
+error anywhere, and `impeccable detect` exits 0 when it scans nothing. So
+`dashboard-gate` rebuilds and compares rather than trusting mtimes, and
+`impeccable-gate` scans a canary fixture that is *required* to trip before it
+will believe a clean result.
 
 ## Companions (borrow, don't rebuild)
 
@@ -360,13 +370,15 @@ interaction-layer analysis, technical path). Calls made in this build:
 ## Repo map
 
 ```
-src/            the bus: server (9 tools) · store (node:sqlite) · http · init
+src/            the bus: server (10 tools) · store (node:sqlite) · http · init
 widget/         loopback-widget.js — the embeddable capture layer
+dashboard/      React + shadcn source for /queue (built output in public/dashboard)
 demo/           intentionally broken playground app
+design/         shared tokens.css — one design system for widget, dashboard, registry
 skills/         canonical loopback SKILL.md (installed for Claude + Codex)
 integrations/   canonical playbook + per-agent setup + widget embed + keep-alive
 plugin/         Claude Code plugin (skill + MCP registration); repo doubles as its marketplace
-scripts/        e2e.mjs · init-gate.mjs · screenshot.mjs
+scripts/        e2e.mjs · the four gates · screenshot.mjs
 docs/           the decision history (spec → memo → paths → technical path)
 ```
 

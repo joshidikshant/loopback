@@ -381,12 +381,15 @@ export function ItemDetail({
       {item.comments && item.comments.length > 0 && (
         <Section label={`Trail (${item.comments.length})`}>
           <div className="grid gap-2">
+            {/* A divided list, not a stack of accent-bordered cards. The trail is
+                a log; separators between entries read as one, side-tabs read as
+                several unrelated callouts. */}
             {item.comments.map((c) => (
-              <div key={c.id} className="border-l-2 pl-2.5">
+              <div key={c.id} className="py-2 not-last:border-b">
                 <div className="text-xs text-muted-foreground">
                   {c.author} · {c.created_at}
                 </div>
-                <div className="whitespace-pre-wrap text-sm">{c.body}</div>
+                <div className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</div>
               </div>
             ))}
           </div>

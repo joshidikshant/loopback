@@ -7,3 +7,15 @@ dist/
 dashboard/src/tokens.generated.css
 dashboard/node_modules/
 .dashboard-freshness/
+
+# Impeccable (design anti-pattern detector).
+# The CI gate runs the version-pinned npm devDependency, so nothing here is
+# needed to enforce quality — these are the agent-authoring conveniences.
+#   .claude/skills/impeccable/ is 2.8MB of third-party code with no bundled
+#   licence; install it yourself rather than vendoring it into an MIT repo:
+#     npx impeccable install --providers=claude --scope=project
+# .impeccable/config.json IS committed — the scoped suppressions and their
+# stated reasons are project truth and must be shared.
+.claude/skills/impeccable/
+.impeccable/config.local.json
+.impeccable/cache/
