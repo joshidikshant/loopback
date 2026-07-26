@@ -113,17 +113,45 @@ for (const item of registry.items) {
 // ---------- 3. Theme tokens agree with the design system ----------
 const theme = registry.items.find((i) => i.type === "registry:theme");
 if (theme) {
-  // Substring comparison on normalised whitespace — the token values contain
-  // regex metacharacters (parentheses, dots), so pattern-matching them is a
-  // trap rather than a check.
-  const squash = (s) => s.replace(/\s+/g, " ");
-  const tokens = squash(readFileSync(join(ROOT, "design/tokens.css"), "utf-8"));
-  const check = (vars) =>
-    Object.entries(vars ?? {}).filter(([name, value]) => !tokens.includes(`--${name}: ${squash(value)};`));
-  const missing = [...check(theme.cssVars?.light), ...check(theme.cssVars?.dark)];
+  // Per-BLOCK comparison. This was a whole-file substring test, which cannot
+  // tell `:root` from `.dark` — so a published theme with its light and dark
+  // values swapped passed green, because both values existed *somewhere* in the
+  // file. Verified: swapping --lb-fixed's two values used to report a match.
+  const css = readFileSync(join(ROOT, "design/tokens.css"), "utf-8");
+  const squash = (s) => s.replace(/\s+/g, " ").trim();
+
+  const blockVars = (selector) => {
+    const start = css.indexOf(`${selector} {`);
+    if (start === -1) return null;
+    const body = css.slice(start, css.indexOf("\n}", start));
+    const out = {};
+    for (const [, name, value] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) {
+      out[name] = squash(value);
+    }
+    return out;
+  };
+
+  const source = { light: blockVars(":root"), dark: blockVars(".dark") };
+  const drifted = [];
+  let compared = 0;
+  for (const themeName of ["light", "dark"]) {
+    const src = source[themeName];
+    if (!src) {
+      drifted.push(`${themeName}:<block missing from tokens.css>`);
+      continue;
+    }
+    for (const [name, value] of Object.entries(theme.cssVars?.[themeName] ?? {})) {
+      const want = src[`--${name}`];
+      compared++;
+      if (want === undefined) drifted.push(`${themeName}/${name} (absent from tokens.css)`);
+      else if (want !== squash(value)) drifted.push(`${themeName}/${name}: ${squash(value)} ≠ ${want}`);
+    }
+  }
+  // Guard the guard: a parse that compares nothing must not report a match.
+  assert(compared > 0, `published theme actually declares tokens to compare (${compared})`);
   assert(
-    missing.length === 0,
-    `published theme tokens match design/tokens.css${missing.length ? ` (drifted: ${missing.map(([n]) => n).join(", ")})` : ""}`,
+    drifted.length === 0,
+    `published theme tokens match design/tokens.css per theme block${drifted.length ? ` (drifted: ${drifted.join(", ")})` : ` (${compared} compared)`}`,
   );
 }
 

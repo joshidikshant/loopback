@@ -95,14 +95,18 @@ function Section({
     return (
       <section className="grid min-w-0 gap-1.5" aria-label={label}>
         <h2 className={LABEL}>{label}</h2>
-        <div>{children}</div>
+        {/* min-w-0 belongs HERE, not only on the wrapper: this div is the grid
+            item holding the content, and a grid item defaults to
+            min-width:auto — it refuses to shrink below its longest unbreakable
+            token no matter what the parent says. */}
+        <div className="min-w-0">{children}</div>
       </section>
     );
   }
   return (
     <div className="grid min-w-0 gap-1.5">
       <span className={LABEL}>{label}</span>
-      <div>{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
@@ -376,7 +380,7 @@ export function ItemDetail({
         )}
         {item.repro_steps.length > 0 && (
           <Section region label="Repro steps">
-            <ol className="list-decimal pl-5 text-sm">
+            <ol className="list-decimal pl-5 text-sm break-all">
               {item.repro_steps.map((s, n) => <li key={n}>{s}</li>)}
             </ol>
           </Section>
@@ -571,9 +575,15 @@ export function ItemDetail({
           >
             {busy ? "Uploading…" : "Choose file"}
           </Button>
+          {/* Proxied by the "Choose file" button, which is the real control.
+              It still needs a name — it is a form control in the tree — and it
+              stays out of the tab order so keyboard users are not sent to an
+              invisible input. */}
           <input
             ref={fileRef}
             type="file"
+            aria-label="Choose a file to attach"
+            tabIndex={-1}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];

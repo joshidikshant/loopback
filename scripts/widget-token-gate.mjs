@@ -93,6 +93,17 @@ const PAIRS = [
   ["--lb-highlight", "--lb-highlight"],
 ];
 
+// Geometry counts as a token too — --lb-pin-size drifted to 22 against the
+// widget's 24 precisely because it sat outside the map and was re-hardcoded as
+// a literal, leaving the vanilla .lb-pin recipe under the SC 2.5.8 floor.
+// These are theme-INVARIANT: tokens.css declares them once in :root, so they
+// are compared against the light block only.
+const INVARIANT_PAIRS = [
+  ["--lb-pin-size", "--lb-pin-size"],
+  ["--lb-pin-radius", "--lb-pin-radius"],
+  ["--lb-radius", "--radius"],
+];
+
 // tokens.css writes `oklch(1 0 0 / 10%)`; the widget minifies to `oklch(1 0 0/10%)`.
 const norm = (v) => v.replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim();
 
@@ -105,8 +116,11 @@ for (const [theme, source, marker] of [
     fail(`could not find the widget's ${theme} token block`);
     continue;
   }
+  // Invariant tokens live only in :root; comparing them against .dark would
+  // report a phantom "missing from tokens.css" for every one of them.
+  const applicable = theme === "light" ? [...PAIRS, ...INVARIANT_PAIRS] : PAIRS;
   let checked = 0;
-  for (const [widgetName, designName] of PAIRS) {
+  for (const [widgetName, designName] of applicable) {
     const want = source[designName];
     const got = inWidget[widgetName];
     if (want === undefined) {
@@ -123,7 +137,8 @@ for (const [theme, source, marker] of [
     }
   }
   // Guard the guard: a parse that silently matches nothing must not pass.
-  if (checked < PAIRS.length) fail(`${theme}: only ${checked}/${PAIRS.length} tokens were compared`);
+  if (checked < applicable.length)
+    fail(`${theme}: only ${checked}/${applicable.length} tokens were compared`);
   else pass(`${theme}: all ${checked} widget tokens match design/tokens.css`);
 }
 

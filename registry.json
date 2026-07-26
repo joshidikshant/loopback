@@ -55,6 +55,22 @@
       "docs": "Pairs with the loopback-widget item. Use the tokens directly (background: var(--lb-verified)) or through Tailwind arbitrary values (bg-[var(--lb-verified)]). Status names match the Loopback MCP bus exactly, so a badge coloured by var(--lb-{status}) always agrees with the queue."
     },
     {
+      "name": "loopback-components",
+      "type": "registry:file",
+      "title": "Loopback component recipes",
+      "description": "Vanilla CSS recipes for the shadcn component vocabulary (lb-btn, lb-badge, lb-card, lb-table, lb-input, lb-pin). No Tailwind, no build step, no React \u2014 every value comes from the loopback-theme tokens.",
+      "registryDependencies": [
+        "@loopback/loopback-theme"
+      ],
+      "files": [
+        {
+          "path": "design/components.css",
+          "type": "registry:file",
+          "target": "~/loopback-components.css"
+        }
+      ]
+    },
+    {
       "$schema": "https://ui.shadcn.com/schema/registry-item.json",
       "name": "loopback-widget",
       "type": "registry:file",

@@ -211,7 +211,14 @@ Use 'fixed' after making the change; use loopback_resolve_feedback for final ver
       },
     },
     async ({ id, status, note, author }) => {
-      const item = store.updateStatus(id, status, note, author);
+      // `verified`/`wontfix` are resolutions, not plain status writes: they
+      // must go through resolve() so `resolution` is recorded. Without this a
+      // pin reached full green with resolution NULL over MCP, while the HTTP
+      // route guarded the same transition.
+      const item =
+        status === "verified" || status === "wontfix"
+          ? store.resolve(id, status, note, author)
+          : store.updateStatus(id, status, note, author);
       if (!item) return notFound(id);
       return ok(`Updated ${id} → ${status}.`, itemJson(item));
     },

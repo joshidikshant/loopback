@@ -278,7 +278,8 @@
     "--lb-muted:oklch(0.97 0 0);--lb-muted-fg:oklch(0.556 0 0);" +
     "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.922 0 0);" +
     "--lb-primary:oklch(0.205 0 0);--lb-primary-fg:oklch(0.985 0 0);" +
-    "--lb-ring:oklch(0.708 0 0);--lb-radius:0.625rem;" +
+    "--lb-ring:oklch(0.708 0 0);--lb-radius:0.625rem;"+
+    "--lb-pin-size:24px;--lb-pin-radius:999px 999px 999px 4px;" +
     "--lb-open:oklch(0.555 0.163 48.998);--lb-open-fg:oklch(0.985 0 0);" +
     "--lb-triaged:oklch(0.476 0.113 61.907);--lb-triaged-fg:oklch(0.985 0 0);" +
     "--lb-in-progress:oklch(0.488 0.243 264.376);--lb-in-progress-fg:oklch(0.985 0 0);" +
@@ -347,7 +348,7 @@
     ".b-fixed{background:var(--lb-fixed);color:var(--lb-fixed-fg)}" +
     ".b-verified{background:var(--lb-verified);color:var(--lb-verified-fg)}" +
     ".b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
-    ".hl{position:fixed;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
+    ".hl{position:fixed;left:0;top:0;will-change:transform;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
     ".form{position:fixed;z-index:2147483001;width:300px;max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
     // 16px, not 13px: iOS Safari zooms the viewport on focus for anything under
     // 16px, and this panel is position:fixed — the zoom leaves it half off-screen
@@ -370,7 +371,7 @@
     // a precise point on someone else's page, so it cannot grow to 44 without
     // lying about what it marks; the panel's pin list is the large-target route
     // to the same actions.
-    ".pin{position:fixed;left:0;top:0;will-change:transform;z-index:2147482999;width:24px;height:24px;padding:0;border:none;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
+    ".pin{position:fixed;left:0;top:0;z-index:2147482999;width:var(--lb-pin-size);height:var(--lb-pin-size);padding:0;border:none;border-radius:var(--lb-pin-radius);background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:var(--lb-pin-size);text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
     ".pin:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
     ".pin.b-open{background:var(--lb-open);color:var(--lb-open-fg)}" +
     ".pin.b-triaged{background:var(--lb-triaged);color:var(--lb-triaged-fg)}" +
@@ -410,10 +411,13 @@
   fab.setAttribute("part", "fab");
   fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
   fab.setAttribute("aria-expanded", "false");
-  fab.setAttribute("aria-haspopup", "dialog");
+  fab.setAttribute("aria-controls", "lb-panel");
   var tip = mk("div", "tip", TAGLINE);
   tip.setAttribute("role", "tooltip");
   var panel = mk("div", "panel");
+  panel.id = "lb-panel";
+  panel.setAttribute("role", "group");
+  panel.setAttribute("aria-label", "Loopback — " + PROJECT);
   // textContent, not string concatenation: the project slug comes from the
   // host page's script tag and never gets parsed as markup.
   panel.appendChild(mk("h3", null, "Loopback — " + PROJECT));
@@ -516,14 +520,25 @@
     return out;
   }
 
+  // rAF-throttled, like renderPins. This measured and then wrote four style
+  // properties on every mousemove event — read-after-write at pointer rate,
+  // the same class of thrash renderPins was rebuilt to eliminate.
+  var paintQueued = null;
   function paint(el) {
     if (!highlight || !el) return;
-    var r = el.getBoundingClientRect();
-    highlight.style.display = "block";
-    highlight.style.left = r.left - 2 + "px";
-    highlight.style.top = r.top - 2 + "px";
-    highlight.style.width = r.width + "px";
-    highlight.style.height = r.height + "px";
+    paintQueued = el;
+    if (paint.frame) return;
+    paint.frame = requestAnimationFrame(function () {
+      paint.frame = 0;
+      var target = paintQueued;
+      if (!highlight || !target) return;
+      var r = target.getBoundingClientRect();
+      highlight.style.display = "block";
+      highlight.style.transform =
+        "translate3d(" + Math.round(r.left - 2) + "px," + Math.round(r.top - 2) + "px,0)";
+      highlight.style.width = r.width + "px";
+      highlight.style.height = r.height + "px";
+    });
   }
 
   function describe(el) {
@@ -595,7 +610,7 @@
     fab.textContent = FAB_LABEL;
     fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
   fab.setAttribute("aria-expanded", "false");
-  fab.setAttribute("aria-haspopup", "dialog");
+  fab.setAttribute("aria-controls", "lb-panel");
     if (highlight) highlight.remove();
     highlight = null;
     kbTargets = [];

@@ -169,17 +169,38 @@ async function main() {
   await waitFor(`${LB}/queue`);
   await waitFor(`${DEMO}/index.html`);
 
-  // One item, so the queue renders real rows rather than the empty state.
-  await fetch(`${LB}/ingest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project: "a11y", type: "ui", severity: "p3",
-      title: "Seed item for the accessibility gate",
-      body: "Rendered so the table and cards have content to measure.",
-      dom_selector: "h1", route: "/index.html", source: "widget", reporter: "human",
-    }),
-  });
+  // Seed one item per STATUS and per SEVERITY, so every colour pair in the
+  // design system is actually on screen when contrast is measured. Seeding a
+  // single open/p3 item measured 1 of 6 status pairs and 1 of 4 severities —
+  // the pale --lb-fixed regression that motivated this gate would have passed.
+  const STATUSES = ["open", "triaged", "in_progress", "fixed", "verified", "wontfix"];
+  const SEVERITIES = ["p0", "p1", "p2", "p3"];
+  const seeded = [];
+  for (let i = 0; i < STATUSES.length; i++) {
+    const res = await fetch(`${LB}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project: "a11y", type: "ui",
+        severity: SEVERITIES[i % SEVERITIES.length],
+        title: `Seed ${STATUSES[i]} / ${SEVERITIES[i % SEVERITIES.length]}`,
+        body: "Rendered so every status and severity pair is measured.",
+        dom_selector: "h1", route: "/index.html", source: "widget", reporter: "human",
+      }),
+    });
+    seeded.push((await res.json()).id);
+  }
+  // Move each into its target status so all six badge pairs render.
+  for (let i = 0; i < seeded.length; i++) {
+    const status = STATUSES[i];
+    if (status === "open") continue;
+    await fetch(`${LB}/queue/${seeded[i]}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ status, note: "seed", author: "a11y-gate" }),
+    });
+  }
+  const detailSeed = seeded[0];
 
   const browser = await chromium.launch();
   try {
@@ -211,10 +232,7 @@ async function main() {
 
     // Long unbreakable strings are the realistic overflow trigger: AGENTS.md
     // tells agents to paste trace URLs into these very fields.
-    const detail = await page.evaluate(async (base) => {
-      const r = await fetch(base + "/feedback?project=a11y&limit=1");
-      return (await r.json()).items[0].id;
-    }, LB);
+    const detail = detailSeed;
     await fetch(`${LB}/feedback/${detail}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -244,6 +262,8 @@ async function main() {
       "detail: no contrast failures in either theme");
     check(item.smallTargets.length === 0,
       `detail: every target clears 24x24${item.smallTargets.length ? ` — ${JSON.stringify(item.smallTargets)}` : ""}`);
+    check(item.unnamed.length === 0,
+      `detail: every control has an accessible name${item.unnamed.length ? ` — ${JSON.stringify(item.unnamed)}` : ""}`);
     check(item.title.includes(detail), "detail: route change set the document title");
 
     // ---------- widget, on a host page ----------
@@ -283,6 +303,16 @@ async function main() {
     check(widget.smallestFont >= 16,
       `widget: inputs are >=16px so iOS does not zoom a fixed panel (${widget.smallestFont}px)`);
     check(widget.fabExpanded, "widget: the FAB exposes aria-expanded");
+
+    // The shadow-piercing scan exists for THIS. It was only ever run on the
+    // dashboard, which has no shadow roots, so the widget's own colours and
+    // target sizes had never been measured by anything.
+    await wpage.evaluate(KILL_MOTION);
+    const widgetMeasured = await wpage.evaluate(MEASURE);
+    check(widgetMeasured.contrastLight.length === 0,
+      `widget: no contrast failures${widgetMeasured.contrastLight.length ? ` — ${JSON.stringify(widgetMeasured.contrastLight)}` : ""}`);
+    check(widgetMeasured.smallTargets.length === 0,
+      `widget: every target clears 24x24${widgetMeasured.smallTargets.length ? ` — ${JSON.stringify(widgetMeasured.smallTargets)}` : ""}`);
 
     // ---------- reduced motion is honoured where the motion actually is ----------
     const rm = await browser.newPage({ viewport: { width: 1280, height: 800 } });
