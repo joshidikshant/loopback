@@ -285,6 +285,17 @@
     ".fab{position:fixed;bottom:18px;right:18px;z-index:2147483000;background:var(--lb-primary);color:var(--lb-primary-fg);border:none;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;box-shadow:var(--lb-shadow-md)}" +
     ".fab:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
     ".fab.pinmode{background:var(--lb-in-progress);color:var(--lb-on-status)}" +
+    // Own tooltip rather than title="": a native tooltip waits ~1s, is styled by
+    // the OS, and can't be shown on keyboard focus.
+    ".tip{position:fixed;bottom:62px;right:18px;z-index:2147483000;max-width:250px;" +
+    "background:var(--lb-primary);color:var(--lb-primary-fg);padding:7px 10px;" +
+    "border-radius:" + RADIUS_MD + ";font-size:12px;line-height:1.45;" +
+    "box-shadow:var(--lb-shadow-md);opacity:0;transform:translateY(4px);" +
+    "transition:opacity .12s ease,transform .12s ease;pointer-events:none}" +
+    ".fab:hover~.tip,.fab:focus-visible~.tip{opacity:1;transform:none}" +
+    // Suppress it when the panel is open or we're mid-pin: the label no longer
+    // says "Loopback", so explaining Loopback would be noise.
+    ".panel.open~.tip,.fab.pinmode~.tip{opacity:0!important;transform:translateY(4px)!important}" +
     ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:290px;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
     ".panel.open{display:block}" +
     ".panel h3{margin:0 0 8px;font-size:13px;font-weight:600}" +
@@ -331,8 +342,14 @@
   var ui = mk("div", "lb-root");
   root.appendChild(ui);
 
-  var fab = mk("button", "fab", "✦ Feedback");
+  var FAB_LABEL = "✦ Loopback";
+  var TAGLINE = "Pin feedback on this page — an agent picks it up and the pin turns green.";
+
+  var fab = mk("button", "fab", FAB_LABEL);
   fab.setAttribute("part", "fab");
+  fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
+  var tip = mk("div", "tip", TAGLINE);
+  tip.setAttribute("role", "tooltip");
   var panel = mk("div", "panel");
   // textContent, not string concatenation: the project slug comes from the
   // host page's script tag and never gets parsed as markup.
@@ -341,8 +358,11 @@
   var pinList = mk("div", "pinlist");
   panel.appendChild(pinBtn);
   panel.appendChild(pinList);
+  // Order matters: the tooltip's CSS keys off ~ (general sibling), so it has to
+  // come after both the fab that reveals it and the panel that suppresses it.
   ui.appendChild(fab);
   ui.appendChild(panel);
+  ui.appendChild(tip);
 
   function mount() {
     document.body.appendChild(host);
@@ -395,7 +415,7 @@
   function exitPinMode() {
     pinMode = false;
     fab.classList.remove("pinmode");
-    fab.textContent = "✦ Feedback";
+    fab.textContent = FAB_LABEL;
     if (highlight) highlight.remove();
     highlight = null;
     document.removeEventListener("mousemove", onMove, true);

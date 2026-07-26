@@ -71,7 +71,7 @@ node demo/serve.mjs            # demo app on 127.0.0.1:5173 (broken backend + wr
 ```
 
 Open http://127.0.0.1:5173 → submit the form (it fails politely) → **✦
-Feedback → Pin feedback on an element** → click the submit button → Send. The
+Loopback → Pin feedback on an element** → click the submit button → Send. The
 form shows the captured failed request. Then tell any connected agent *"work
 the feedback queue for acme-demo"* — or watch the item at
 http://127.0.0.1:7077/queue and be the agent yourself over MCP. When it's
@@ -126,7 +126,7 @@ surfaces and one sentence to an agent:
 
 | I want to… | Do this |
 |---|---|
-| **Report something** on a page with the widget | Click **✦ Feedback → Pin feedback on an element**, click the thing, describe it. Failing requests, console, and AI run context attach themselves. |
+| **Report something** on a page with the widget | Click **✦ Loopback → Pin feedback on an element**, click the thing, describe it. Failing requests, console, and AI run context attach themselves. |
 | **See the queue** | `http://127.0.0.1:7077/queue` — filter with `?project=<slug>`, click a row for a quick read |
 | **Read everything on one item** | Click its id → `http://127.0.0.1:7077/queue/<id>`. Deep-linkable: paste it to a teammate or an agent. |
 | **Comment or change status myself** | On the item view — plain forms, no agent needed |
@@ -144,7 +144,7 @@ can you. Four ways in, from most to least convenient:
 
 1. **Pin it on the queue page.** With the hub running, open
    `http://127.0.0.1:7077/queue` — the capture widget is embedded there with
-   `data-project=loopback`. Click **✦ Feedback → Pin feedback on an element**,
+   `data-project=loopback`. Click **✦ Loopback → Pin feedback on an element**,
    click whatever is wrong, describe it. Same loop as any other project.
 2. **Tell an agent.** In this repo (self-onboarded with its own `init`), say
    *"file feedback for loopback: <what's wrong>"* — the skill and AGENTS.md
