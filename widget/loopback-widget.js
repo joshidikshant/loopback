@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.6.0 (MIT)
+ * Loopback capture widget v0.7.0 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -309,7 +309,7 @@
     ".actions button{flex:1;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
     ".actions button:hover{background:var(--lb-muted)}" +
     ".actions .primary{background:var(--lb-primary);color:var(--lb-primary-fg);border-color:transparent}" +
-    ".pin{position:absolute;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-on-status);font-size:11px;font-weight:600;line-height:22px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm)}" +
+    ".pin{position:fixed;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-on-status);font-size:11px;font-weight:600;line-height:22px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm)}" +
     ".pin.b-open{background:var(--lb-open)}.pin.b-triaged{background:var(--lb-triaged)}" +
     ".pin.b-in_progress{background:var(--lb-in-progress)}.pin.b-fixed{background:var(--lb-fixed)}" +
     ".pin.b-verified{background:var(--lb-verified)}.pin.b-wontfix{background:var(--lb-wontfix)}" +
@@ -547,26 +547,49 @@
           };
         });
       }
+      // The form stays mounted until the report is SAFELY on the bus. Losing
+      // what someone just typed is the one unforgivable failure for a feedback
+      // tool, and the hub being down is a normal, expected state.
+      var sendBtn = form.querySelector(".send");
+      var keepDraft = function (message) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send";
+        toast(message);
+      };
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending…";
+
       origFetch(ENDPOINT + "/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
         .then(function (r) {
-          return r.json();
+          return r.json().catch(function () {
+            return { ok: false, error: "HTTP " + r.status };
+          });
         })
         .then(function (j) {
-          form.remove();
-          if (j.ok) {
+          if (j && j.ok) {
+            form.remove();
             toast("Filed " + j.id + " — an agent will pick it up");
             refreshPins();
-          } else {
-            toast("Loopback rejected the payload");
+            return;
           }
+          // Show WHICH field the bus rejected, so the text can be salvaged.
+          var issue = j && j.issues && j.issues[0];
+          keepDraft(
+            issue
+              ? "Rejected: " + issue.path + " — " + issue.message + " (your text is kept)"
+              : "Loopback rejected this report" +
+                  (j && j.error ? " (" + j.error + ")" : "") +
+                  " — your text is kept",
+          );
         })
         .catch(function () {
-          form.remove();
-          toast("Could not reach Loopback at " + ENDPOINT);
+          keepDraft(
+            "Can't reach Loopback at " + ENDPOINT + " — is the hub running? Your text is kept.",
+          );
         });
     });
   }
@@ -579,7 +602,7 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.6.0",
+    version: "0.7.0",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
@@ -659,8 +682,14 @@
       pin.className = "pin b-" + item.status;
       pin.textContent = String(idx + 1);
       pin.title = "[" + item.status + "] " + item.title;
-      pin.style.left = window.scrollX + r.right - 10 + "px";
-      pin.style.top = window.scrollY + r.top - 10 + "px";
+      // Viewport coordinates with position:fixed, NOT document coordinates.
+      // An absolutely-positioned pin resolves against the nearest positioned
+      // ancestor, so on a centred layout (body{position:relative;margin:0 auto})
+      // every pin landed offset by the auto margin — measured 300px off on a
+      // 680px centred page. Fixed + viewport coords is immune to the host's
+      // layout; scroll/resize already re-render (rAF-throttled).
+      pin.style.left = r.right - 10 + "px";
+      pin.style.top = r.top - 10 + "px";
       // Colour comes from the .b-<status> class, not an inline style, so the
       // status palette lives in one place and follows light/dark with it.
       if (changedIds[item.id]) pin.classList.add("pulse");

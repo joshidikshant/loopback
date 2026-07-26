@@ -1,8 +1,16 @@
 /**
  * HTTP surface: stateless MCP (/mcp), widget ingestion (/ingest), pin hydration
- * (GET /feedback), a minimal human queue view (/queue), the embeddable widget
- * (/widget.js), and /health. CORS is open so the widget can post from any app
- * origin during dev; token-gate before exposing beyond localhost.
+ * (GET /feedback), the human queue views (/queue, /queue/:id), the embeddable
+ * widget (/widget.js), and /health.
+ *
+ * TRUST MODEL — the boundary is not "localhost", it is "any page open in the
+ * operator's browser", because a loopback port is reachable from every one of
+ * them. So CORS is granted to exactly the three routes the widget needs from a
+ * foreign origin (/ingest, /feedback, /widget.js) and nowhere else; /feedback
+ * cross-origin returns the pin projection only; and everything that reads full
+ * context or changes state — including /mcp, which carries all nine tools —
+ * requires an origin pinned at startup from the bind config.
+ *
  * SSE is deliberately not offered (deprecated in Claude Code, unsupported in Codex).
  */
 
@@ -52,7 +60,56 @@ function escapeHtml(text: string): string {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/**
+ * A URL safe to put in href=. Escaping is not enough: `javascript:` survives it
+ * intact, and anyone who can file an item (i.e. any page, via /ingest) controls
+ * `url` and `pr_url`. One click on the queue would then run script on the hub's
+ * own origin, where it can read and rewrite everything. Non-http(s) values are
+ * rendered as inert text instead.
+ */
+function safeHref(raw: string): string | null {
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Renders a URL as a link when it is safe, and as plain code when it is not. */
+function linkOrText(raw: string, label?: string): string {
+  const href = safeHref(raw);
+  return href
+    ? `<a href="${escapeHtml(href)}">${escapeHtml(label ?? raw)}</a>`
+    : `<code class="lb-mono">${escapeHtml(raw)}</code>`;
+}
+
+/**
+ * The fields a cross-origin caller may read. The widget renders pins from
+ * exactly these; everything omitted (body, console, network, extra) is where
+ * captured secrets live — response bodies routinely contain auth headers.
+ */
+function pinProjection(item: FeedbackItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    project: item.project,
+    route: item.route,
+    title: item.title,
+    type: item.type,
+    severity: item.severity,
+    status: item.status,
+    assignee_agent: item.assignee_agent,
+    dom_selector: item.dom_selector,
+    links: { pr_url: item.links.pr_url },
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  };
 }
 
 const STATUSES = [
@@ -64,32 +121,66 @@ const STATUSES = [
   "wontfix",
 ] as const;
 
-/**
- * CSRF guard for the state-changing triage endpoints.
- *
- * The server is unauthenticated and CORS is deliberately wide open, because
- * the capture widget has to POST /ingest from whatever origin the host app
- * runs on. That is an acceptable trade for an append-only intake endpoint —
- * but it must NOT extend to mutating an item's status or audit trail, or any
- * page you happen to visit could quietly rewrite your queue. These endpoints
- * therefore require a same-origin submission: browsers always attach Origin to
- * a cross-origin POST, so a foreign page is rejected, while local tooling
- * (curl, scripts) that sends no Origin still works.
- */
-function sameOriginOnly(
-  req: express.Request,
-  res: express.Response,
-): boolean {
-  const origin = req.get("origin");
-  if (!origin) return true; // curl / server-side tooling
-  if (origin === selfOrigin(req)) return true;
-  res.status(403).json({
-    ok: false,
-    error: "Cross-origin writes are not allowed on triage endpoints.",
-    hint: "Use the /queue UI on this origin, the MCP tools, or a local script.",
-  });
-  return false;
+/** Config the app needs to know about its own identity on the network. */
+export interface HttpOptions {
+  /** Bind host, used to pin which origins are trusted. */
+  host?: string;
+  /** Bind port, same. */
+  port?: number;
 }
+
+/**
+ * Origins trusted to read full-fidelity data and to make changes.
+ *
+ * Pinned at startup from the bind config rather than derived from the request's
+ * Host header. Host is attacker-influenced: a domain that resolves to 127.0.0.1
+ * (DNS rebinding) arrives with Host AND Origin both set to that domain, so a
+ * "does Origin equal my own Host" test passes for a site that is not us.
+ */
+function trustedOrigins(opts: HttpOptions): Set<string> {
+  const port = opts.port ?? 7077;
+  const bind = opts.host ?? "127.0.0.1";
+  const hosts = ["127.0.0.1", "localhost", "[::1]"];
+  // An explicit LAN/proxy bind is also legitimately "us".
+  if (!["127.0.0.1", "localhost", "0.0.0.0", "::"].includes(bind)) hosts.push(bind);
+  return new Set(hosts.map((h) => `http://${h}:${port}`));
+}
+
+export function createHttpApp(
+  makeServer: () => McpServer,
+  store: LoopbackStore,
+  options: HttpOptions = {},
+): express.Express {
+  const TRUSTED = trustedOrigins(options);
+
+  /** True when the caller is us, or non-browser tooling that sends no Origin. */
+  const isTrusted = (req: express.Request): boolean => {
+    const origin = req.get("origin");
+    return !origin || TRUSTED.has(origin);
+  };
+
+  /**
+   * Guard for everything that can read secrets or change state.
+   *
+   * CORS has to stay open for `POST /ingest` — the widget reports from whatever
+   * origin the host app runs on, and that is an append-only intake. It must not
+   * extend one inch further: `/mcp` exposes all nine tools, so leaving it open
+   * let any page in the operator's browser read every project's queue and
+   * silently resolve items. Browsers always attach Origin cross-origin, so this
+   * rejects foreign pages while local tooling (curl, MCP clients) still works.
+   */
+  const requireTrustedOrigin = (
+    req: express.Request,
+    res: express.Response,
+  ): boolean => {
+    if (isTrusted(req)) return true;
+    res.status(403).json({
+      ok: false,
+      error: "Cross-origin requests are not allowed on this endpoint.",
+      hint: "Use the /queue UI on this origin, an MCP client, or a local script. POST /ingest is the cross-origin entry point.",
+    });
+    return false;
+  };
 
 /** Shared page chrome for the queue and item views. */
 function pageShell(req: express.Request, title: string, body: string): string {
@@ -269,22 +360,25 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
   return parts.join("") || `<span class="lb-muted">No further context captured.</span>`;
 }
 
-export function createHttpApp(
-  makeServer: () => McpServer,
-  store: LoopbackStore,
-): express.Express {
   const app = express();
   app.use(express.json({ limit: "2mb" }));
   // Triage actions post as plain HTML forms so they work without JavaScript.
   app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-  // CORS: the widget posts from the host app's origin.
+  // CORS is granted to exactly the routes the widget needs from a foreign
+  // origin, and nowhere else. `/mcp`, `/feedback/:id` and the `/queue` pages
+  // are deliberately not on this list.
+  const CORS_ROUTES = new Set(["/ingest", "/feedback", "/widget.js"]);
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    const open = CORS_ROUTES.has(req.path);
+    if (open) {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Vary", "Origin");
+    }
     if (req.method === "OPTIONS") {
-      res.sendStatus(204);
+      res.sendStatus(open ? 204 : 403);
       return;
     }
     next();
@@ -355,7 +449,15 @@ export function createHttpApp(
       return;
     }
     const { response_format: _rf, ...filters } = parsed.data;
-    res.json(store.list(filters));
+    const result = store.list(filters);
+    if (!isTrusted(req)) {
+      // A foreign origin (i.e. the widget on a host app) gets only what pins
+      // need. `extra` in particular carries captured response bodies, which
+      // routinely include auth headers.
+      res.json({ ...result, items: result.items.map(pinProjection) });
+      return;
+    }
+    res.json(result);
   });
 
   /**
@@ -382,7 +484,7 @@ export function createHttpApp(
     const rows = result.items
       .map((i) => {
         const change = i.links.pr_url
-          ? `<a href="${escapeHtml(i.links.pr_url)}">PR</a>`
+          ? linkOrText(i.links.pr_url, "PR")
           : i.links.commit
             ? `<code class="lb-mono">${escapeHtml(i.links.commit.slice(0, 9))}</code>`
             : `<span class="lb-muted">—</span>`;
@@ -468,7 +570,7 @@ ${flash ? `<div class="flash lb-badge lb-badge--fixed">${escapeHtml(flash)}</div
   ${meta("Route", item.route ? `<code class="lb-mono">${escapeHtml(item.route)}</code>` : `<span class="lb-muted">—</span>`)}
   ${meta("Created", `<span class="lb-muted">${escapeHtml(item.created_at)}</span>`)}
   ${meta("Updated", `<span class="lb-muted">${escapeHtml(item.updated_at)}</span>`)}
-  ${item.url ? meta("URL", `<a href="${escapeHtml(item.url)}">${escapeHtml(item.url)}</a>`) : ""}
+  ${item.url ? meta("URL", linkOrText(item.url)) : ""}
 </div>
 <div class="detail-inner">${itemSections(item, { full: true })}</div>
 <div class="actions-grid">
@@ -500,9 +602,9 @@ ${flash ? `<div class="flash lb-badge lb-badge--fixed">${escapeHtml(flash)}</div
     res.type("html").send(pageShell(req, `${item.title} — Loopback`, body));
   });
 
-  /** Human triage: append to the trail. Same-origin only (see sameOriginOnly). */
+  /** Human triage: append to the trail. Trusted origins only. */
   app.post("/queue/:id/comment", (req, res) => {
-    if (!sameOriginOnly(req, res)) return;
+    if (!requireTrustedOrigin(req, res)) return;
     const { body, author } = req.body as { body?: string; author?: string };
     const text = (body ?? "").trim();
     if (!text) {
@@ -521,9 +623,9 @@ ${flash ? `<div class="flash lb-badge lb-badge--fixed">${escapeHtml(flash)}</div
     res.redirect(303, `/queue/${encodeURIComponent(req.params.id)}?done=Comment+added`);
   });
 
-  /** Human triage: move the status. Same-origin only (see sameOriginOnly). */
+  /** Human triage: move the status. Trusted origins only. */
   app.post("/queue/:id/status", (req, res) => {
-    if (!sameOriginOnly(req, res)) return;
+    if (!requireTrustedOrigin(req, res)) return;
     const { status, note, author } = req.body as {
       status?: string;
       note?: string;
@@ -559,6 +661,7 @@ ${flash ? `<div class="flash lb-badge lb-badge--fixed">${escapeHtml(flash)}</div
 
   // Stateless MCP: fresh server+transport per request (no session state, no SSE).
   app.post("/mcp", async (req, res) => {
+    if (!requireTrustedOrigin(req, res)) return;
     try {
       const server = makeServer();
       const transport = new StreamableHTTPServerTransport({

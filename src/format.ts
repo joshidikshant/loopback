@@ -60,6 +60,33 @@ export function itemMarkdown(item: FeedbackItem): string {
       );
     }
   }
+
+  // The two fields the agent playbook tells every agent to read. They live in
+  // `extra`, which markdown previously dropped entirely — so on the DEFAULT
+  // response format the product's whole differentiator (a frontend pin carrying
+  // the backend's own error body, and an AI pin carrying its run metadata) was
+  // invisible unless the agent happened to ask for JSON.
+  const failed = (item.extra as {
+    failed_responses?: { url?: string; status?: number; body?: string }[];
+  }).failed_responses;
+  if (Array.isArray(failed) && failed.length) {
+    lines.push(``, `## Failed responses (captured at report time)`, ``);
+    for (const f of failed) {
+      lines.push(`- **${f.status ?? "ERR"} ${f.url ?? "?"}**`);
+      if (f.body) lines.push("", "```", f.body, "```");
+    }
+  }
+  const context = (item.extra as { context?: Record<string, unknown> }).context;
+  if (context) {
+    lines.push(
+      ``,
+      `## Run context (AI / automation)`,
+      ``,
+      "```json",
+      JSON.stringify(context, null, 2),
+      "```",
+    );
+  }
   const links = Object.entries(item.links).filter(([, v]) => v !== undefined);
   if (links.length) {
     lines.push(``, `## Linked change`, ``);

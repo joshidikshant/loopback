@@ -266,6 +266,35 @@ async function main() {
   assert(contactPin.pr?.includes("pull/7"), "pin carries the PR link");
   const pinCount = await page.locator("#loopback-widget-host .pin").count();
   assert(pinCount === 2, `both pins rendered on the page (got ${pinCount})`);
+
+  // A pin that renders but lands somewhere else is worse than no pin. The demo
+  // body is centred AND positioned, which is where document-coordinate pins
+  // drift by the auto margin.
+  // Pins render in queue order, not DOM order, so pair each one with its own
+  // anchor exactly the way the widget does.
+  const placement = await page.evaluate(() => {
+    const root = document.querySelector("#loopback-widget-host").shadowRoot;
+    const pins = [...root.querySelectorAll(".pin")];
+    const anchored = (window.__loopback.pins ?? []).filter(
+      (i) => i.dom_selector && document.querySelector(i.dom_selector),
+    );
+    return pins.map((pin, n) => {
+      const t = document.querySelector(anchored[n].dom_selector).getBoundingClientRect();
+      const p = pin.getBoundingClientRect();
+      return {
+        selector: anchored[n].dom_selector,
+        dx: Math.round(p.left - (t.right - 10)),
+        dy: Math.round(p.top - (t.top - 10)),
+      };
+    });
+  });
+  const drifted = placement.filter((p) => Math.abs(p.dx) > 2 || Math.abs(p.dy) > 2);
+  assert(
+    placement.length > 0 && drifted.length === 0,
+    `every pin lands on its own anchor, not offset by the host's layout${
+      drifted.length ? ` — drifted: ${JSON.stringify(drifted)}` : ` (${placement.length} checked)`
+    }`,
+  );
   console.log("✅ reload: pin is green/verified with agent + PR attached — loop closed visibly");
 
   // 6. Widget hardening (regressions found dogfooding on a real Next.js site)
@@ -323,6 +352,38 @@ async function main() {
       !isolation.background.includes("255, 105, 180"),
     "host page's --primary/--background did not leak through the shadow boundary",
   );
+
+  // Losing what someone just typed is the one unforgivable failure for a
+  // feedback tool, and an unreachable hub is a normal state.
+  log("hardening: the draft survives an unreachable hub");
+  await page.route("**/ingest", (route) => route.abort());
+  await page.click("#loopback-widget-host .fab");
+  await page.click("#loopback-widget-host .pinbtn");
+  await page.click('[data-testid="ai-answer"]');
+  const draftSel = "#loopback-widget-host .form";
+  await page.waitForSelector(draftSel);
+  const precious = "Half an hour of careful description that must not evaporate.";
+  await page.fill(`${draftSel} .f-title`, "Draft survival check");
+  await page.fill(`${draftSel} .f-got`, precious);
+  await page.click(`${draftSel} .send`);
+  await page.waitForSelector("#loopback-widget-host .toast");
+  const survived = await page.evaluate((text) => {
+    const root = document.querySelector("#loopback-widget-host").shadowRoot;
+    const form = root.querySelector(".form");
+    const toast = root.querySelector(".toast");
+    return {
+      formStillOpen: !!form,
+      textIntact: form?.querySelector(".f-got")?.value === text,
+      sendUsable: form?.querySelector(".send")?.disabled === false,
+      told: toast?.textContent ?? "",
+    };
+  }, precious);
+  assert(survived.formStillOpen, "the capture form stays open when the hub is unreachable");
+  assert(survived.textIntact, "the typed report is still there, character for character");
+  assert(survived.sendUsable, "Send is re-enabled so it can be retried");
+  assert(/hub running|kept/i.test(survived.told), `the user is told what happened (got "${survived.told}")`);
+  await page.unroute("**/ingest");
+  await page.click(`${draftSel} .cancel`);
 
   log("hardening: semantic-class selectors");
   const selSample = await page.evaluate(() =>
@@ -404,6 +465,41 @@ async function main() {
     body: JSON.stringify({ project: "acme-demo", type: "ui", title: "cross-origin intake still works" }),
   });
   assert(ingest.status === 201, `cross-origin /ingest still accepted (got ${ingest.status})`);
+
+  // /mcp carries all nine tools. Leaving it cross-origin-readable let any page
+  // in the operator's browser read every project and silently resolve items.
+  const foreignMcp = await fetch(`${LB}/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      Origin: "https://evil.example",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "loopback_list_feedback", arguments: {} },
+    }),
+  });
+  assert(foreignMcp.status === 403, `a foreign origin cannot reach /mcp (got ${foreignMcp.status})`);
+
+  // Captured response bodies routinely contain auth headers, so a foreign
+  // reader gets the pin projection only — never `extra`.
+  const foreignRead = await (
+    await fetch(`${LB}/feedback?project=acme-demo&limit=10`, {
+      headers: { Origin: "https://evil.example" },
+    })
+  ).json();
+  const leaked = JSON.stringify(foreignRead);
+  assert(
+    !leaked.includes("DB_WRITE_FAILED") && !foreignRead.items.some((i) => i.extra),
+    "cross-origin reads are stripped of captured context (no extra, no response bodies)",
+  );
+  assert(
+    foreignRead.items.every((i) => i.id && i.status),
+    "cross-origin reads still carry what pins need (id, status)",
+  );
   console.log("✅ item detail view: full context, human comment lands, cross-origin writes refused");
 
   await browser.close();

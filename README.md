@@ -261,11 +261,24 @@ Responses are markdown (default) or JSON via `response_format`, always with
 | `GET /widget.js` | The embeddable widget |
 | `GET /health` | Liveness |
 
-**Security**: binds `127.0.0.1` by default; CORS is permissive for local dev.
-`--host`/`LOOPBACK_HOST` widens the bind for LAN device testing — **there is
-no auth**, the server warns loudly, use only on trusted networks. Before any
-real exposure, put it behind a reverse proxy with a bearer token (and
-token-gate `/ingest` first).
+**Security**: the trust boundary is not "localhost" — a loopback port is
+reachable from **every page open in your browser**. So:
+
+- CORS is granted to `POST /ingest`, `GET /feedback` and `GET /widget.js` only
+  — the three things the widget genuinely needs from a foreign origin.
+- Cross-origin reads get the **pin projection** (id, status, title, assignee,
+  selector, PR link). `extra` — captured response bodies, which routinely
+  contain auth headers — is never served cross-origin.
+- Everything that reads full context or changes state, **including `/mcp`**,
+  requires an origin pinned at startup from the bind config. Local tooling that
+  sends no `Origin` (curl, MCP clients) still works.
+- URLs on items are rendered as links only when they are `http(s)`.
+
+There is still **no authentication**: anyone who can reach the port with a
+non-browser client can read and write everything. `--host`/`LOOPBACK_HOST`
+widens the bind for LAN device testing and the server warns loudly — trusted
+networks only. Before any real exposure, put it behind a reverse proxy with a
+bearer token.
 
 ## Tests
 

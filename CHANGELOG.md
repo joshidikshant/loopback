@@ -5,6 +5,58 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-20
+
+Tier A of the v0.6.0 review: the five defects that would each have broken the
+first real session. Found by a 13-agent adversarial review, then reproduced by
+hand before being fixed.
+
+### Security
+- **`POST /mcp` was an unauthenticated cross-origin read/write channel to every
+  project.** CORS was `*` on every route, and the same-origin guard added in
+  0.6.0 covered only the two HTML triage forms — leaving the endpoint that
+  carries all nine tools wide open. Reproduced: a foreign origin read the whole
+  queue (including a captured `Bearer` token) and silently resolved an item.
+  Now: CORS is granted to `/ingest`, `/feedback` and `/widget.js` only;
+  everything else requires an origin **pinned at startup from the bind config**
+  rather than derived from the caller-supplied `Host` header (which DNS
+  rebinding controls). `POST /ingest` stays open — that is how widgets report.
+- **Cross-origin reads are now the pin projection only** (id, status, title,
+  assignee, selector, PR link). `extra` — which holds captured response bodies,
+  routinely containing auth headers — is never served cross-origin.
+- **Stored XSS via `javascript:` URLs.** `url` and `pr_url` were interpolated
+  into `href=` unvalidated, so anyone who could file an item could plant a link
+  that ran script on the hub's own origin — past the CSRF guard — on one click.
+  Non-http(s) URLs now render as inert text; `escapeHtml` also escapes `'`.
+
+### Fixed
+- **The widget no longer destroys what you typed.** `form.remove()` ran before
+  the failure toast, with no draft persistence, so an unreachable hub (the
+  default state when nothing keeps it alive) silently ate the report on Send.
+  The form now stays mounted, Send re-enables, and a rejected payload reports
+  which field the bus refused.
+- **Pins landed offset by the host page's layout.** Absolutely-positioned pins
+  resolve against the nearest positioned ancestor, so on a centred layout
+  (`body{position:relative;margin:0 auto}` — most real sites) every pin drifted
+  by the auto margin; measured 284px off on the demo page once it was made
+  representative. Pins are now `position:fixed` in viewport coordinates.
+- **The default MCP response hid the product's differentiator.** `itemMarkdown`
+  dropped `extra` entirely, so `failed_responses` (the captured backend error
+  body) and `extra.context` (LLM run metadata) — the two fields the agent
+  playbook explicitly tells agents to read — were invisible unless an agent
+  happened to ask for JSON. Both now render.
+- **No SQLite busy timeout.** The architecture expects concurrent writers (the
+  hub serving widgets while agents spawn stdio instances against the same
+  file); with the default of 0 a collision threw `SQLITE_BUSY` instantly and
+  surfaced to the reporter as "can't reach Loopback". Now 5s.
+
+### Testing
+- The demo fixture is now a centred, positioned layout, so the existing pin
+  assertion is meaningful; verified by regressing the fix and watching the gate
+  fail (dx=284, dy=48). New assertions cover draft survival under an
+  unreachable hub, the `/mcp` origin guard, and cross-origin `extra` stripping —
+  all in the existing e2e, no new gate.
+
 ## [0.6.0] — 2026-07-20
 
 Human triage: the queue stops being read-only for people.

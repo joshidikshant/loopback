@@ -80,7 +80,7 @@ async function main(): Promise<void> {
       argValue("--port") ?? process.env.LOOPBACK_HTTP_PORT ?? 7077,
     );
     const host = argValue("--host") ?? process.env.LOOPBACK_HOST ?? "127.0.0.1";
-    const app = createHttpApp(() => buildServer(store), store);
+    const app = createHttpApp(() => buildServer(store), store, { host, port });
     app.listen(port, host, () => {
       console.error(
         `loopback-mcp-server v${SERVER_VERSION} on http://${host}:${port}/mcp  (db: ${dbPath})`,

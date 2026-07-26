@@ -96,7 +96,12 @@ export class LoopbackStore {
     if (dbPath !== ":memory:") {
       mkdirSync(dirname(dbPath), { recursive: true });
     }
-    this.db = new DatabaseSync(dbPath);
+    // A busy timeout is not optional here: the architecture EXPECTS concurrent
+    // writers (the --http hub serving widgets while agents spawn their own
+    // stdio instances against the same file). With the default of 0, a
+    // collision throws SQLITE_BUSY instantly, which surfaces to the reporter as
+    // "can't reach Loopback" on a hub that is running perfectly well.
+    this.db = new DatabaseSync(dbPath, { timeout: 5000 });
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec(SCHEMA);
     // Migration for databases created before v0.2.0 (no extra_json column).
