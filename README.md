@@ -216,7 +216,8 @@ Full matrix, native snippets (Swift/Kotlin/C#/shell), and the honest edges:
 
 | Surface | Status |
 |---|---|
-| Web apps (any framework, dev/prod) · browser extensions (bundle the widget file — MV3 forbids remote scripts) · Electron/Tauri · WebViews | ✅ widget: pins + auto-context + green write-back |
+| Web apps **in local dev** (any framework) · browser extensions (bundle the widget file — MV3 forbids remote scripts) · Electron/Tauri · WebViews | ✅ widget: pins + auto-context + green write-back |
+| Deployed public sites | ✖ Chrome 142+ blocks a public page from reaching `127.0.0.1`. Use the Sentry/PostHog rails instead. |
 | Native macOS/Windows apps · CLIs · CI/cron · agents/automations | ✅ `POST /ingest` or MCP (~10-line debug-menu snippet; status via `/queue`) |
 | iOS/Android simulators & emulators | ✅ shared loopback / `adb reverse` |
 | iOS/Android physical devices on LAN | ✅ `--host 0.0.0.0` (opt-in, **no auth** — trusted networks only) |

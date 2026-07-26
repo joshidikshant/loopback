@@ -20,7 +20,9 @@ works — it always does.
 ## The three tiers
 
 **Tier 1 — widget-native (full experience: pins, auto-context, visible green).**
-Anything with a DOM.
+Anything with a DOM, **running locally**. Chrome's Local Network Access rules mean a
+deployed public page cannot reach a hub on `127.0.0.1`, so this tier is
+dev-time by construction.
 
 **Tier 2 — ingest-native (full queue + agent loop; hand-built context; status
 via `/queue`, not pins).** Anything that can POST JSON.
@@ -34,7 +36,8 @@ crash/replay capture.
 
 | Surface | Tier | Works today? | How |
 |---|---|---|---|
-| **Web app** (any framework, dev or deployed) | 1 | ✅ | One script tag (or runtime injection/bookmarklet for zero-touch trials) |
+| **Web app in DEV** (any framework) | 1 | ✅ | One script tag, dev-gated (or runtime injection for a zero-touch trial) |
+| **Web app DEPLOYED** (public HTTPS) | — | ✖ | **Chrome 142+ Local Network Access blocks a public page from reaching `127.0.0.1`** (permission-prompted, denied by default). The widget is a build-time tool, not a production feedback capture. Use the Sentry/PostHog rails for production signal. |
 | **Browser extension** (MV3) | 1 | ✅ | **Bundle `widget/loopback-widget.js` into the extension** — MV3 CSP + store policy forbid remote scripts, so copy the file, don't hotlink. Works in popup/options pages; a content-script build can pin on any page (DOM-Review's model) |
 | **Electron / Tauri desktop** (Mac·Win·Linux) | 1 | ✅ | Renderer is a browser — bundle the widget file, endpoint `127.0.0.1:7077` |
 | **WebView inside a native app** (WKWebView / Android WebView) | 1 | ✅ | Widget inside the webview; native shell unaffected |
