@@ -41,6 +41,30 @@ export interface FeedbackComment {
   body: string;
 }
 
+/**
+ * Why an attachment exists, which decides what an agent does with it.
+ * - `reference`: context for the fix (a screenshot, a "make it look like this"
+ *   image, a spec). Read it, then leave it here — it never ships.
+ * - `asset`: a deliverable. The blob store is a transfer buffer; copy it into
+ *   the repo at `target_path`, commit it, and record where it landed.
+ */
+export type AttachmentIntent = "reference" | "asset";
+
+export interface Attachment {
+  id: string;
+  created_at: string;
+  name: string;
+  mime: string;
+  size: number;
+  intent: AttachmentIntent;
+  /** For `asset`: where in the consuming repo this should end up. */
+  target_path?: string;
+  /** Absolute path on this machine — agents should read/copy the file directly. */
+  path: string;
+  /** Served by the hub, for humans and browsers. */
+  url: string;
+}
+
 export interface FeedbackItem {
   id: string;
   project: string;
@@ -67,6 +91,7 @@ export interface FeedbackItem {
   /** Free-form context: LLM run ids, automation trace URLs, viewport, outer HTML, etc. */
   extra: Record<string, unknown>;
   comments?: FeedbackComment[];
+  attachments?: Attachment[];
 }
 
 export interface ListResult {

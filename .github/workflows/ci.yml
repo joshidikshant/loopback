@@ -15,10 +15,13 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm ci --prefix dashboard
       - run: npm run build
       - run: npm run smoke
       - run: node scripts/init-gate.mjs
       - run: node scripts/registry-gate.mjs
+      # Catches a committed dashboard build that has drifted from its source.
+      - run: node scripts/dashboard-gate.mjs
 
   e2e:
     runs-on: ubuntu-latest

@@ -8,6 +8,7 @@ import {
   claimShape,
   feedbackItemShape,
   getShape,
+  idShape,
   linkChangeShape,
   listResultShape,
   listShape,
@@ -15,12 +16,13 @@ import {
   statsResultShape,
   statsShape,
   submitShape,
+  updateShape,
   updateStatusShape,
 } from "./schemas.js";
 import { itemMarkdown, listMarkdown } from "./format.js";
 import type { FeedbackItem } from "./types.js";
 
-export const SERVER_VERSION = "0.7.1";
+export const SERVER_VERSION = "0.8.0";
 
 type ToolResult = {
   content: { type: "text"; text: string }[];
@@ -291,6 +293,35 @@ Prefer verifying before resolving: re-check the UI via your browser tools, or co
       const item = store.resolve(id, resolution, note);
       if (!item) return notFound(id);
       return ok(`Resolved ${id} as ${resolution}.`, itemJson(item));
+    },
+  );
+
+  server.registerTool(
+    "loopback_update_feedback",
+    {
+      title: "Edit feedback item",
+      description: `Correct an item after it was filed: title, body, severity, type, project, or route.
+
+Feedback is filed fast and imprecisely on purpose — that is what makes people file it at all. Use this to re-rank a severity you now understand, fix a mis-guessed type, correct a typo, or move an item to the right project.
+
+Args: id, plus any of title, body, severity (p0-p3), type (ui|backend|usage|ux), project, route. Also author (default 'human') — use your agent name so the trail says who re-triaged it.
+
+Every change is recorded as a comment naming the old and new value; nothing is silently rewritten. Fields you omit are left alone.
+
+This is for correcting the REPORT. To record progress use loopback_update_status, and to record the fix use loopback_link_change.`,
+      inputSchema: strict({ ...idShape, ...updateShape }),
+      outputSchema: feedbackItemShape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ id, author, ...patch }) => {
+      const item = store.update(id, patch, author);
+      if (!item) return notFound(id);
+      return ok(`Updated ${id}.`, itemJson(item));
     },
   );
 

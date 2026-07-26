@@ -5,6 +5,58 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-26
+
+The dashboard becomes a real app. Driven entirely by DJ using it on localhost
+and hitting three walls, each filed into Loopback's own queue first.
+
+### Added
+- **`/queue` is now a React + shadcn application** (source in `dashboard/`,
+  installed with the real `shadcn` CLI — Table, Badge, Card, Dialog, Input,
+  Select, Textarea, Sonner). It replaces ~300 lines of server-rendered template
+  strings that were at their limit once the page needed filtering, editing and
+  file upload.
+  - **The build output is committed** to `public/dashboard/`, so
+    `npx loopback-mcp-server` still needs no React, no Tailwind and no build
+    step. The hub just serves files.
+  - **One design system, not two.** Tailwind is themed from the existing
+    `design/tokens.css` (copied in at build time by `sync:tokens` and mapped
+    through `@theme inline`), so the widget, the published shadcn registry and
+    the dashboard all render the same status colours from the same source.
+  - The widget is untouched and always will be: it injects into arbitrary host
+    pages, so it stays one dependency-free file.
+- **Filtering that works.** Status tiles are toggles, and project / severity /
+  type / assignee cells filter to themselves. Filters compose, live in the URL
+  (so every view is linkable), and tile counts are computed from the unfiltered
+  scope so choosing one never hides the way back. Plus client-side search over
+  title, body and id. (fb_ms1oksb3)
+- **Editing.** Title, body, severity, type, project and route can be corrected
+  after filing, from the item view or via the new `loopback_update_feedback`
+  MCP tool (now ten tools). Every change is recorded as a comment naming the
+  old and new value — nothing is rewritten silently. (fb_ms1oksbi)
+- **Attachments, with intent.** Files upload from the item view and land in
+  `~/.loopback/blobs/<item>/`, beside the DB rather than inside it. Each
+  attachment declares why it exists:
+  - `reference` — context for the fix (a screenshot, a spec). Never ships.
+  - `asset` — a deliverable. The blob store is a transfer buffer; the item
+    carries a `target_path` and the agent copies the file into the repo there
+    and commits it.
+  Agents get an **absolute local path**, so they copy the file rather than
+  decoding bytes out of the protocol. Upload takes no new runtime dependency:
+  the file is the request body and metadata rides in the query string.
+  (fb_ms1oksbz)
+- **`dashboard-gate`** (in CI): asserts the committed build exists, is
+  **rebuilt-and-compared fresh** against its source (timestamps lie after a
+  `git checkout`), carries the shared tokens, and stays under 800KB.
+
+### Changed
+- `GET /feedback` accepts `limit` up to 1000. The MCP tool stays capped at 100 —
+  that limit protects an agent's context window, which is not a constraint a
+  browser table shares. Query errors now say which field was rejected instead
+  of a bare "Invalid query".
+- Removed ~300 lines of now-dead server-rendering helpers (`pageShell`,
+  `itemSections`, `escapeHtml`, `safeHref`, `linkOrText`, `designCss`).
+
 ## [0.7.1] — 2026-07-26
 
 MCP Inspector pass. Ran the official Inspector against the server, which

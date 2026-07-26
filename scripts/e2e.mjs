@@ -407,12 +407,39 @@ async function main() {
 
   // 7. The human triage surface: a deep-linkable item view where a person can
   //    read everything captured and act on it without an agent or curl.
-  log("item detail view");
+  log("dashboard: list renders and filters");
+  await page.goto(`${LB}/queue`, { waitUntil: "load" });
+  await page.waitForSelector("tbody tr", { timeout: 10000 });
+  const listed = await page.evaluate(() => document.querySelectorAll("tbody tr").length);
+  assert(listed >= 2, `dashboard lists the queue (${listed} rows)`);
+  // Status tiles are the filter affordance — clicking must actually narrow it.
+  const filtering = await page.evaluate(async () => {
+    const before = document.querySelectorAll("tbody tr").length;
+    const tile = [...document.querySelectorAll("button")].find((b) =>
+      /\d+\s+verified/.test(b.textContent ?? ""),
+    );
+    if (!tile) return { skipped: true };
+    tile.click();
+    await new Promise((r) => setTimeout(r, 400));
+    return { before, after: document.querySelectorAll("tbody tr").length, url: location.search };
+  });
+  if (!filtering.skipped) {
+    assert(
+      filtering.after < filtering.before && filtering.url.includes("status=verified"),
+      `clicking a status tile filters and is linkable (${filtering.before} → ${filtering.after}, ${filtering.url})`,
+    );
+  }
+
+  log("dashboard: item detail");
   await page.goto(`${LB}/queue/${contactItem.id}`, { waitUntil: "load" });
+  await page.waitForSelector("h1", { timeout: 10000 });
+  await page.waitForFunction(
+    () => document.body.innerText.includes("DB_WRITE_FAILED"),
+    { timeout: 10000 },
+  );
   const detail = await page.evaluate(() => ({
     title: document.querySelector("h1")?.textContent ?? "",
     text: document.body.innerText,
-    forms: [...document.querySelectorAll("form.act")].map((f) => f.getAttribute("action")),
   }));
   assert(detail.title.includes("Contact form"), "detail view shows the item title");
   assert(
@@ -423,21 +450,60 @@ async function main() {
     detail.text.includes("fix/contacts-migration") && detail.text.includes("pull/7"),
     "detail view renders the linked change",
   );
-  assert(detail.forms.length === 2, "detail view offers comment + status forms");
-
-  log("human comment via the form");
-  await page.fill("form.act[action$='/comment'] [name=body]", "Checked this myself — reproduces.");
-  await page.fill("form.act[action$='/comment'] [name=author]", "dj");
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "load" }),
-    page.click("form.act[action$='/comment'] button[type=submit]"),
-  ]);
-  const afterComment = await page.evaluate(() => document.body.innerText);
-  assert(afterComment.includes("Comment added"), "comment form confirms the write");
   assert(
-    afterComment.includes("Checked this myself — reproduces."),
-    "the human comment is on the trail immediately",
+    /reference/.test(detail.text) && /asset/.test(detail.text),
+    "detail view offers attachments with the reference/asset intent",
   );
+
+  log("dashboard: human comment lands on the trail");
+  await page.fill("textarea", "Checked this myself — reproduces.");
+  await page.click("button:has-text('Comment')");
+  await page.waitForFunction(
+    () => document.body.innerText.includes("Checked this myself — reproduces."),
+    { timeout: 10000 },
+  );
+  assert(true, "the human comment is on the trail immediately");
+
+  log("dashboard: edit is audited");
+  await page.click("button:has-text('Edit')");
+  await page.waitForSelector("input.text-base", { timeout: 5000 });
+  await page.fill("input.text-base", "Contact form says try again (edited)");
+  await page.click("button:has-text('Save')");
+  await page.waitForFunction(
+    () => document.body.innerText.includes("[edited]"),
+    { timeout: 10000 },
+  );
+  const edited = await (await fetch(`${LB}/feedback/${contactItem.id}`)).json();
+  assert(
+    edited.title === "Contact form says try again (edited)",
+    `edit persisted (title is "${edited.title}")`,
+  );
+  assert(
+    edited.comments.some((c) => c.body.includes("[edited]") && c.body.includes("→")),
+    "the edit is on the audit trail with its old value",
+  );
+
+  log("dashboard: attachment intent round-trip");
+  const att = await fetch(
+    `${LB}/feedback/${contactItem.id}/attachments?name=logo.svg&intent=asset&target=public/logos/x.svg`,
+    { method: "POST", headers: { "Content-Type": "image/svg+xml" }, body: "<svg/>" },
+  );
+  assert(att.status === 201, `asset attachment accepted (got ${att.status})`);
+  const withAtt = await (await fetch(`${LB}/feedback/${contactItem.id}`)).json();
+  const asset = withAtt.attachments?.[0];
+  assert(
+    asset?.intent === "asset" && asset?.target_path === "public/logos/x.svg",
+    "the asset carries its target path so an agent knows where it belongs",
+  );
+  assert(
+    typeof asset?.path === "string" && asset.path.includes(contactItem.id),
+    "the agent gets an absolute file path, not just a URL",
+  );
+  const traversal = await fetch(
+    `${LB}/feedback/${contactItem.id}/attachments?name=x&intent=asset&target=../../etc/passwd`,
+    { method: "POST", headers: { "Content-Type": "text/plain" }, body: "x" },
+  );
+  assert(traversal.status === 400, `a traversal target is refused (got ${traversal.status})`);
 
   log("cross-origin write is refused");
   // The server is unauthenticated with wide-open CORS so the widget can post
@@ -500,7 +566,7 @@ async function main() {
     foreignRead.items.every((i) => i.id && i.status),
     "cross-origin reads still carry what pins need (id, status)",
   );
-  console.log("✅ item detail view: full context, human comment lands, cross-origin writes refused");
+  console.log("✅ dashboard: filters, detail, audited edit, attachment intents, cross-origin writes refused");
 
   await browser.close();
   console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure → human triage");

@@ -4,3 +4,6 @@ dist/
 *.db-wal
 *.db-shm
 .DS_Store
+dashboard/src/tokens.generated.css
+dashboard/node_modules/
+.dashboard-freshness/

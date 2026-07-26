@@ -5,9 +5,11 @@
 
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import type {
+  Attachment,
   ChangeLinks,
   ClaimResult,
   FeedbackComment,
@@ -53,6 +55,21 @@ CREATE TABLE IF NOT EXISTS comments (
   body TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_comments_feedback ON comments(feedback_id);
+CREATE TABLE IF NOT EXISTS attachments (
+  id TEXT PRIMARY KEY,
+  feedback_id TEXT NOT NULL REFERENCES feedback(id),
+  created_at TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  -- 'reference' = context for the fix, never ships. 'asset' = a deliverable the
+  -- agent must copy into the repo at target_path and commit. Same storage, very
+  -- different meaning, and only the reporter knows which it is.
+  intent TEXT NOT NULL DEFAULT 'reference',
+  target_path TEXT,
+  file TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_feedback ON attachments(feedback_id);
 `;
 
 interface FeedbackRow {
@@ -91,11 +108,18 @@ function genId(): string {
 
 export class LoopbackStore {
   private db: DatabaseSync;
+  /**
+   * Blobs sit beside the DB rather than inside it: an attached logo set would
+   * bloat every query that reads a row, and copying the folder keeps the
+   * attachments with the database.
+   */
+  readonly blobRoot: string;
 
   constructor(dbPath: string) {
     if (dbPath !== ":memory:") {
       mkdirSync(dirname(dbPath), { recursive: true });
     }
+    this.blobRoot = join(dbPath === ":memory:" ? tmpdir() : dirname(dbPath), "blobs");
     // A busy timeout is not optional here: the architecture EXPECTS concurrent
     // writers (the --http hub serving widgets while agents spawn their own
     // stdio instances against the same file). With the default of 0, a
@@ -194,6 +218,19 @@ export class LoopbackStore {
         `SELECT id, created_at, author, body FROM comments WHERE feedback_id = ? ORDER BY id ASC`,
       )
       .all(id) as unknown as FeedbackComment[];
+    // Agents get an absolute path so they can read or copy the file directly,
+    // rather than round-tripping bytes through the protocol.
+    item.attachments = this.rawAttachments(id).map((a) => ({
+      id: a.id,
+      created_at: a.created_at,
+      name: a.name,
+      mime: a.mime,
+      size: a.size,
+      intent: a.intent as Attachment["intent"],
+      ...(a.target_path ? { target_path: a.target_path } : {}),
+      path: join(this.blobRoot, id, a.file),
+      url: `/blob/${id}/${a.id}`,
+    }));
     return item;
   }
 
@@ -305,6 +342,135 @@ export class LoopbackStore {
       .prepare(`UPDATE feedback SET updated_at = ? WHERE id = ?`)
       .run(nowIso(), id);
     return this.get(id);
+  }
+
+  /**
+   * Correct an item after filing.
+   *
+   * You file fast — that is the point — so the first version is often wrong
+   * about severity or type, or has a typo in the title. Every change is
+   * recorded as a comment naming the old and new value: the queue is only
+   * trustworthy if history cannot be quietly rewritten.
+   */
+  update(
+    id: string,
+    patch: {
+      title?: string;
+      body?: string;
+      severity?: string;
+      type?: string;
+      project?: string;
+      route?: string;
+    },
+    author = "human",
+  ): FeedbackItem | null {
+    const before = this.get(id);
+    if (!before) return null;
+
+    const cols: string[] = [];
+    const params: (string | number)[] = [];
+    const changes: string[] = [];
+    const FIELDS = ["title", "body", "severity", "type", "project", "route"] as const;
+    for (const field of FIELDS) {
+      const next = patch[field];
+      if (next === undefined) continue;
+      const prev = (before as unknown as Record<string, unknown>)[field];
+      if (String(prev ?? "") === next) continue;
+      cols.push(`${field} = ?`);
+      params.push(next);
+      changes.push(
+        field === "body"
+          ? `body rewritten (${String(prev ?? "").length} → ${next.length} chars)`
+          : `${field}: ${JSON.stringify(prev ?? null)} → ${JSON.stringify(next)}`,
+      );
+    }
+    if (!cols.length) return before;
+
+    this.db
+      .prepare(`UPDATE feedback SET ${cols.join(", ")}, updated_at = ? WHERE id = ?`)
+      .run(...params, nowIso(), id);
+    this.addComment(id, author, `[edited] ${changes.join("; ")}`);
+    return this.get(id);
+  }
+
+  addAttachment(
+    feedbackId: string,
+    att: {
+      id: string;
+      name: string;
+      mime: string;
+      size: number;
+      intent: string;
+      target_path?: string;
+      file: string;
+    },
+    author = "human",
+  ): FeedbackItem | null {
+    const exists = this.db.prepare(`SELECT 1 FROM feedback WHERE id = ?`).get(feedbackId);
+    if (!exists) return null;
+    this.db
+      .prepare(
+        `INSERT INTO attachments (id, feedback_id, created_at, name, mime, size, intent, target_path, file)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        att.id,
+        feedbackId,
+        nowIso(),
+        att.name,
+        att.mime,
+        att.size,
+        att.intent,
+        att.target_path ?? null,
+        att.file,
+      );
+    this.addComment(
+      feedbackId,
+      author,
+      att.intent === "asset"
+        ? `[attached asset] ${att.name} — copy it to \`${att.target_path ?? "(no target path given)"}\` in the repo and commit it.`
+        : `[attached reference] ${att.name} — context for the fix; it does not ship.`,
+    );
+    return this.get(feedbackId);
+  }
+
+  /** Rows as stored; the HTTP layer adds absolute path + URL. */
+  rawAttachments(feedbackId: string): {
+    id: string;
+    created_at: string;
+    name: string;
+    mime: string;
+    size: number;
+    intent: string;
+    target_path: string | null;
+    file: string;
+  }[] {
+    return this.db
+      .prepare(
+        `SELECT id, created_at, name, mime, size, intent, target_path, file
+         FROM attachments WHERE feedback_id = ? ORDER BY created_at ASC`,
+      )
+      .all(feedbackId) as never;
+  }
+
+  getAttachment(feedbackId: string, attachmentId: string): {
+    name: string;
+    mime: string;
+    file: string;
+  } | null {
+    const row = this.db
+      .prepare(`SELECT name, mime, file FROM attachments WHERE feedback_id = ? AND id = ?`)
+      .get(feedbackId, attachmentId) as unknown as
+      | { name: string; mime: string; file: string }
+      | undefined;
+    return row ?? null;
+  }
+
+  deleteAttachment(feedbackId: string, attachmentId: string): boolean {
+    const res = this.db
+      .prepare(`DELETE FROM attachments WHERE feedback_id = ? AND id = ?`)
+      .run(feedbackId, attachmentId);
+    return res.changes > 0;
   }
 
   linkChange(id: string, links: ChangeLinks): FeedbackItem | null {

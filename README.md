@@ -161,6 +161,30 @@ can you. Four ways in, from most to least convenient:
 Then work it like any queue: *"work the feedback queue for loopback"*. Every
 Loopback defect in this repo's history was filed and closed exactly this way.
 
+## The dashboard
+
+`/queue` is a **React + shadcn app** (`dashboard/`, built with the real `shadcn`
+CLI). Filter by clicking status tiles or any project / severity / type cell —
+filters compose and live in the URL, so every view is linkable. Open an item to
+read everything captured, **edit** it (title, body, severity, type — every change
+lands on the audit trail), comment, change status, and **attach files**.
+
+Attachments declare *why* they exist, because that decides what an agent does:
+
+| Intent | Meaning |
+|---|---|
+| **`reference`** | Context for the fix — a screenshot, a spec, a "make it look like this". Read it, then leave it. It never ships. |
+| **`asset`** | A deliverable. The blob store is a transfer buffer: the item carries a `target_path` and the agent copies the file into the repo there and commits it. |
+
+Blobs live in `~/.loopback/blobs/<item>/`, beside the DB rather than inside it,
+and agents get an **absolute local path** so they copy the file instead of
+decoding it out of the protocol.
+
+The build output is **committed** to `public/dashboard/`, so
+`npx loopback-mcp-server` still needs no React, no Tailwind and no build step —
+the hub just serves files. `npm run dashboard:build` after changing
+`dashboard/src`; `dashboard-gate` fails CI if the committed build has drifted.
+
 ## Design system (shadcn-compatible, zero dependencies)
 
 Both surfaces — widget and `/queue` — are built from one token set in vanilla

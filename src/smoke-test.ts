@@ -21,6 +21,9 @@ interface CallOk {
   text: string;
 }
 
+/** Module scope so the failure path can still close it — see the .finally below. */
+let client: Client | null = null;
+
 async function main(): Promise<void> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -33,14 +36,15 @@ async function main(): Promise<void> {
     args: [join(process.cwd(), "dist", "index.js")],
     env,
   });
-  const client = new Client({ name: "loopback-smoke", version: "1.0.0" });
-  await client.connect(transport);
+  const mcp = new Client({ name: "loopback-smoke", version: "1.0.0" });
+  client = mcp;
+  await mcp.connect(transport);
 
   const call = async (
     name: string,
     args: Record<string, unknown>,
   ): Promise<CallOk> => {
-    const res = await client.callTool({ name, arguments: args });
+    const res = await mcp.callTool({ name, arguments: args });
     const text =
       Array.isArray(res.content) && res.content[0]?.type === "text"
         ? (res.content[0].text as string)
@@ -56,7 +60,7 @@ async function main(): Promise<void> {
     name: string,
     args: Record<string, unknown>,
   ): Promise<string> => {
-    const res = await client.callTool({ name, arguments: args });
+    const res = await mcp.callTool({ name, arguments: args });
     assert(res.isError, `${name} should have errored`);
     return Array.isArray(res.content) && res.content[0]?.type === "text"
       ? (res.content[0].text as string)
@@ -64,9 +68,9 @@ async function main(): Promise<void> {
   };
 
   // 0. Tool inventory
-  const tools = await client.listTools();
-  assert(tools.tools.length === 9, `expected 9 tools, got ${tools.tools.length}`);
-  console.log(`✅ 9 tools registered: ${tools.tools.map((t) => t.name).join(", ")}`);
+  const tools = await mcp.listTools();
+  assert(tools.tools.length === 10, `expected 10 tools, got ${tools.tools.length}`);
+  console.log(`✅ 10 tools registered: ${tools.tools.map((t) => t.name).join(", ")}`);
 
   // 1. Submit a UI bug (project A) and a backend p0 (project B)
   const bug = await call("loopback_submit_feedback", {
@@ -204,7 +208,7 @@ async function main(): Promise<void> {
   );
   console.log("✅ strict tool inputs: a typo'd argument errors instead of filing the wrong thing");
 
-  await client.close();
+  await mcp.close();
   console.log("\nALL SMOKE TESTS PASSED 🎉");
 }
 
@@ -213,12 +217,21 @@ main()
     console.error("\nSMOKE TEST FAILED:", error);
     process.exitCode = 1;
   })
-  .finally(() => {
+  .finally(async () => {
+    // Close the client on the FAILURE path too. Without this, a failed
+    // assertion skipped the close, the spawned stdio server was orphaned, and
+    // the calling shell hung forever waiting on a child that would never exit —
+    // which reads as "the test suite hangs", not "an assertion failed".
     try {
-      rmSync(dbPath, { force: true });
-      rmSync(`${dbPath}-wal`, { force: true });
-      rmSync(`${dbPath}-shm`, { force: true });
+      await client?.close();
     } catch {
-      /* ignore */
+      /* already closed */
+    }
+    for (const suffix of ["", "-wal", "-shm"]) {
+      try {
+        rmSync(`${dbPath}${suffix}`, { force: true });
+      } catch {
+        /* ignore */
+      }
     }
   });

@@ -54,6 +54,23 @@ export const changeLinksSchema = z.object({
   diff_summary: z.string().optional(),
 });
 
+export const attachmentSchema = z.object({
+  id: z.string(),
+  created_at: z.string(),
+  name: z.string(),
+  mime: z.string(),
+  size: z.number().int(),
+  intent: z
+    .enum(["reference", "asset"])
+    .describe("'reference' = context only; 'asset' = a deliverable to copy into the repo"),
+  target_path: z
+    .string()
+    .optional()
+    .describe("For assets: the repo-relative path this file should end up at"),
+  path: z.string().describe("Absolute path on this machine — read or copy it directly"),
+  url: z.string().describe("Hub URL, for humans and browsers"),
+});
+
 export const commentSchema = z.object({
   id: z.number().int(),
   created_at: z.string(),
@@ -93,6 +110,12 @@ export const feedbackItemShape = {
       "Free-form captured context. Read `extra.failed_responses` for failing requests with up to 2KB of response body, and `extra.context` for LLM/automation run metadata (run_id, model, trace_url).",
     ),
   comments: z.array(commentSchema).optional().describe("Full audit trail"),
+  attachments: z
+    .array(attachmentSchema)
+    .optional()
+    .describe(
+      "Files attached to this item. `intent` decides what you do with each: 'reference' is context for the fix and never ships; 'asset' is a deliverable — copy it from `path` to `target_path` in the repo, commit it, and record that with loopback_link_change. Read files from `path` directly rather than fetching `url`.",
+    ),
 };
 
 export const feedbackItemSchema = z.object(feedbackItemShape);
@@ -309,3 +332,29 @@ export const statsShape = {
     .optional()
     .describe("Limit stats to one project; omit for all projects"),
 };
+
+/** Editing an item after it was filed. Every field optional — patch semantics. */
+export const updateShape = {
+  title: z.string().min(3).max(200).optional().describe("Corrected summary"),
+  body: z.string().max(10000).optional().describe("Corrected description"),
+  severity: severityEnum.optional().describe("Re-ranked severity"),
+  type: typeEnum.optional().describe("Corrected dimension"),
+  project: z.string().min(1).max(100).optional().describe("Move to another project slug"),
+  route: z.string().max(500).optional().describe("Corrected route"),
+  author: z
+    .string()
+    .max(100)
+    .default("human")
+    .describe("Who is making the edit — recorded on the audit trail"),
+};
+export const updateSchema = z.object(updateShape);
+
+/**
+ * GET /feedback for the dashboard. Same filters, higher ceiling: the MCP tool's
+ * limit of 100 exists to protect an agent's context window, which is not a
+ * constraint a browser table shares. Different consumer, different cap.
+ */
+export const httpListSchema = z.object({
+  ...listShape,
+  limit: z.number().int().min(1).max(1000).default(50),
+});

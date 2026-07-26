@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* ONE design system. These are the same tokens the widget and the server-rendered
+   pages use — design/tokens.css is the source of truth, copied here at build time
+   by `npm run sync:tokens` so Tailwind can see it. Editing this file directly will
+   be overwritten; edit design/tokens.css. */
+@import "./tokens.generated.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Map the tokens onto Tailwind's colour space so `bg-background`, `text-muted-foreground`
+   and the Loopback status colours (`bg-lb-verified`) all work as utilities. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-lb-open: var(--lb-open);
+  --color-lb-triaged: var(--lb-triaged);
+  --color-lb-in-progress: var(--lb-in-progress);
+  --color-lb-fixed: var(--lb-fixed);
+  --color-lb-verified: var(--lb-verified);
+  --color-lb-wontfix: var(--lb-wontfix);
+  --color-lb-p0: var(--lb-p0);
+  --color-lb-p1: var(--lb-p1);
+  --color-lb-p2: var(--lb-p2);
+  --color-lb-p3: var(--lb-p3);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --font-mono: var(--lb-font-mono);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
+}

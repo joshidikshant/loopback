@@ -15,14 +15,15 @@
  */
 
 import express from "express";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { LoopbackStore } from "./store.js";
 import type { FeedbackItem } from "./types.js";
-import { listSchema, submitSchema } from "./schemas.js";
+import { httpListSchema, submitSchema, updateSchema } from "./schemas.js";
 import { SERVER_VERSION } from "./server.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,19 +33,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * One source of truth shared with `design/` and the published shadcn registry;
  * inlining keeps the page a single request with no asset pipeline.
  */
-let designCssCache: string | null = null;
-function designCss(): string {
-  if (designCssCache !== null) return designCssCache;
-  const read = (name: string): string => {
-    try {
-      return readFileSync(join(__dirname, "..", "design", name), "utf-8");
-    } catch {
-      return "";
-    }
-  };
-  designCssCache = `${read("tokens.css")}\n${read("components.css")}`;
-  return designCssCache;
-}
 
 /**
  * Origin this request came in on, so the queue page's own widget talks back to
@@ -53,41 +41,6 @@ function designCss(): string {
 function selfOrigin(req: express.Request): string {
   const host = req.get("host") ?? "127.0.0.1:7077";
   return `${req.protocol}://${host}`;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-/**
- * A URL safe to put in href=. Escaping is not enough: `javascript:` survives it
- * intact, and anyone who can file an item (i.e. any page, via /ingest) controls
- * `url` and `pr_url`. One click on the queue would then run script on the hub's
- * own origin, where it can read and rewrite everything. Non-http(s) values are
- * rendered as inert text instead.
- */
-function safeHref(raw: string): string | null {
-  try {
-    const parsed = new URL(raw);
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-      ? parsed.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Renders a URL as a link when it is safe, and as plain code when it is not. */
-function linkOrText(raw: string, label?: string): string {
-  const href = safeHref(raw);
-  return href
-    ? `<a href="${escapeHtml(href)}">${escapeHtml(label ?? raw)}</a>`
-    : `<code class="lb-mono">${escapeHtml(raw)}</code>`;
 }
 
 /**
@@ -182,192 +135,7 @@ export function createHttpApp(
     return false;
   };
 
-/** Shared page chrome for the queue and item views. */
-function pageShell(req: express.Request, title: string, body: string): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)}</title>
-<script>
-  // Resolve the theme before first paint. A class applied after hydration is
-  // exactly the flash-of-wrong-theme bug this project has filed against others.
-  (function () {
-    try {
-      var stored = localStorage.getItem("lb-theme");
-      var dark = stored ? stored === "dark"
-        : matchMedia("(prefers-color-scheme: dark)").matches;
-      if (dark) document.documentElement.classList.add("dark");
-    } catch (e) {}
-  })();
-</script>
-<style>
-${designCss()}
-  html { color-scheme: light; }
-  html.dark { color-scheme: dark; }
-  body { padding: 2rem 1.5rem; max-width: 1180px; margin: 0 auto; }
-  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .35rem; }
-  .bar { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
-  .counts { display: flex; gap: .35rem; flex-wrap: wrap; margin: .75rem 0 1rem; }
-  .row { cursor: pointer; }
-  .row .chev { display: inline-block; width: .7em; color: var(--muted-foreground); transition: transform .15s; }
-  .row[aria-expanded="true"] .chev { transform: rotate(90deg); }
-  .row .ttl { font-weight: 500; }
-  .detail td { background: var(--muted); }
-  .detail-inner { display: grid; gap: .85rem; padding: .35rem .25rem .6rem; }
-  .kv { display: grid; gap: .25rem; }
-  .body { white-space: pre-wrap; font-size: .8125rem; }
-  .steps { margin: 0; padding-left: 1.1rem; font-size: .8125rem; }
-  .comment { border-left: 2px solid var(--border); padding-left: .6rem; margin-bottom: .5rem; }
-  .fail { margin-bottom: .5rem; }
-  .lb-pre { margin: .2rem 0 0; padding: .5rem .6rem; background: var(--background); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); font-family: var(--lb-font-mono); font-size: .75rem;
-            white-space: pre-wrap; overflow-x: auto; }
-  a { color: var(--foreground); }
-  a.plain { text-decoration: none; }
-  a.plain:hover { text-decoration: underline; }
-  .tile { display: inline-block; border-radius: 999px; transition: opacity .12s, box-shadow .12s; }
-  .tile:hover { opacity: .85; text-decoration: none; }
-  .tile.on { box-shadow: 0 0 0 2px var(--ring); border-radius: 999px; }
-  .tile:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 999px; }
-  .filters { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .25rem 0 1rem; font-size: .8125rem; }
-  .chip { border: 1px solid var(--border); border-radius: 999px; padding: .1rem .5rem; font-size: .75rem; }
-  .chip:hover { background: var(--accent); text-decoration: none; }
-  td a.f { text-decoration: none; }
-  td a.f:hover { text-decoration: underline; text-underline-offset: 2px; }
-  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem;
-          margin: 1rem 0; padding: 1rem; }
-  .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.25rem; }
-  @media (max-width: 720px) { .actions-grid { grid-template-columns: 1fr; } }
-  form.act { display: grid; gap: .5rem; }
-  .inline { display: flex; gap: .5rem; align-items: center; }
-  .flash { margin: .75rem 0; }
-</style>
-</head>
-<body class="lb-body">
-${body}
-<script>
-  var t = document.getElementById("theme");
-  if (t) t.addEventListener("click", function () {
-    var dark = document.documentElement.classList.toggle("dark");
-    try { localStorage.setItem("lb-theme", dark ? "dark" : "light"); } catch (e) {}
-  });
-  document.querySelectorAll("tr.row").forEach(function (row) {
-    function toggle(e) {
-      if (e.target.closest("a")) return; // let the id link through
-      var open = row.getAttribute("aria-expanded") === "true";
-      row.setAttribute("aria-expanded", String(!open));
-      row.nextElementSibling.hidden = open;
-    }
-    row.addEventListener("click", toggle);
-    row.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(e); }
-    });
-  });
-</script>
-<!-- Loopback, pinnable by Loopback: these pages are its own reference integration. -->
-<script src="${escapeHtml(selfOrigin(req))}/widget.js"
-        data-project="loopback"
-        data-endpoint="${escapeHtml(selfOrigin(req))}"></script>
-</body>
-</html>`;
-}
 
-/**
- * The captured context of one item, rendered as labelled sections. Shared by
- * the queue's inline expansion and the full item view so the two can never
- * disagree about what an item contains.
- */
-function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
-  const parts: string[] = [];
-  const kv = (label: string, value: string): string =>
-    `<div class="kv"><span class="lb-label">${escapeHtml(label)}</span><div>${value}</div></div>`;
-  const pre = (text: string): string => `<pre class="lb-pre">${escapeHtml(text)}</pre>`;
-
-  if (item.body) parts.push(kv("Report", `<div class="body">${escapeHtml(item.body)}</div>`));
-  if (item.repro_steps.length) {
-    parts.push(
-      kv(
-        "Repro steps",
-        `<ol class="steps">${item.repro_steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ol>`,
-      ),
-    );
-  }
-
-  // The money shot: a frontend pin carrying the backend's own error body.
-  const failed = (item.extra as { failed_responses?: { url: string; status: number; body: string }[] })
-    .failed_responses;
-  if (Array.isArray(failed) && failed.length) {
-    parts.push(
-      kv(
-        "Failed requests",
-        failed
-          .map(
-            (f) =>
-              `<div class="fail"><code class="lb-mono">${escapeHtml(String(f.status))} ${escapeHtml(f.url)}</code>${pre(f.body ?? "")}</div>`,
-          )
-          .join(""),
-      ),
-    );
-  }
-  if (item.network.length && (opts.full || !failed?.length)) {
-    const rows = opts.full ? item.network : item.network.slice(-5);
-    parts.push(
-      kv(
-        `Network${opts.full ? ` (${item.network.length})` : ""}`,
-        rows
-          .map(
-            (n) =>
-              `<code class="lb-mono">${escapeHtml(n.method ?? "GET")} ${escapeHtml(n.url)} → ${escapeHtml(String(n.status ?? "?"))}${n.ms !== undefined ? ` (${escapeHtml(String(n.ms))}ms)` : ""}</code>`,
-          )
-          .join("<br>"),
-      ),
-    );
-  }
-
-  const ctx = (item.extra as { context?: Record<string, unknown> }).context;
-  if (ctx) parts.push(kv("Run context", pre(JSON.stringify(ctx, null, 2))));
-  if (item.console.length) {
-    const lines = opts.full ? item.console : item.console.slice(-10);
-    parts.push(kv(`Console${opts.full ? ` (${item.console.length})` : ""}`, pre(lines.join("\n"))));
-  }
-
-  const linkBits = Object.entries(item.links)
-    .filter(([, v]) => v !== undefined && v !== "")
-    .map(([k, v]) =>
-      k === "pr_url"
-        ? `<a href="${escapeHtml(String(v))}">${escapeHtml(String(v))}</a>`
-        : `<span class="lb-muted">${escapeHtml(k)}:</span> <code class="lb-mono">${escapeHtml(String(v))}</code>`,
-    );
-  if (linkBits.length) parts.push(kv("Linked change", linkBits.join("<br>")));
-
-  if (item.comments?.length) {
-    parts.push(
-      kv(
-        `Trail (${item.comments.length})`,
-        item.comments
-          .map(
-            (c) =>
-              `<div class="comment"><div class="lb-muted">${escapeHtml(c.author)} · ${escapeHtml(c.created_at)}</div><div class="body">${escapeHtml(c.body)}</div></div>`,
-          )
-          .join(""),
-      ),
-    );
-  }
-  if (item.dom_selector) {
-    parts.push(kv("Anchor", `<code class="lb-mono">${escapeHtml(item.dom_selector)}</code>`));
-  }
-  if (opts.full) {
-    const rest = { ...item.extra } as Record<string, unknown>;
-    delete rest.context;
-    delete rest.failed_responses;
-    if (Object.keys(rest).length) {
-      parts.push(kv("Captured environment", pre(JSON.stringify(rest, null, 2))));
-    }
-  }
-  return parts.join("") || `<span class="lb-muted">No further context captured.</span>`;
-}
 
   const app = express();
   app.use(express.json({ limit: "2mb" }));
@@ -445,16 +213,126 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
     res.json(item);
   });
 
+  /** Correct an item after filing. Trusted origins only; audited by the store. */
+  app.patch("/feedback/:id", (req, res) => {
+    if (!requireTrustedOrigin(req, res)) return;
+    const parsed = updateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        ok: false,
+        error: "Invalid edit",
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      });
+      return;
+    }
+    const { author, ...patch } = parsed.data;
+    const item = store.update(req.params.id, patch, author);
+    if (!item) {
+      res.status(404).json({ ok: false, error: `Feedback '${req.params.id}' not found.` });
+      return;
+    }
+    res.json({ ok: true, item });
+  });
+
+  /**
+   * Attachment upload. The body IS the file — no multipart, so no new runtime
+   * dependency. Metadata rides in the query string.
+   *
+   *   POST /feedback/:id/attachments?name=logo.svg&intent=asset&target=public/logos/logo.svg
+   */
+  app.post(
+    "/feedback/:id/attachments",
+    express.raw({ type: "*/*", limit: "10mb" }),
+    (req, res) => {
+      if (!requireTrustedOrigin(req, res)) return;
+      const body = req.body as Buffer;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        res.status(400).json({ ok: false, error: "Empty body — send the file as the request body." });
+        return;
+      }
+      const q = (k: string): string | undefined =>
+        typeof req.query[k] === "string" && req.query[k] ? (req.query[k] as string) : undefined;
+
+      const rawName = q("name") ?? "attachment";
+      // Never let a filename escape the item's own blob directory.
+      const safeName = rawName.replace(/[^\w.\-]+/g, "_").replace(/^\.+/, "").slice(0, 120) || "file";
+      const intent = q("intent") === "asset" ? "asset" : "reference";
+      const target = q("target");
+      if (intent === "asset" && target && (target.startsWith("/") || target.includes(".."))) {
+        res.status(400).json({
+          ok: false,
+          error: "target must be a repo-relative path without '..'",
+        });
+        return;
+      }
+
+      const attId = `att_${Date.now().toString(36)}_${randomBytes(3).toString("hex")}`;
+      const dir = join(store.blobRoot, req.params.id);
+      const fileName = `${attId}-${safeName}`;
+      try {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, fileName), body);
+      } catch (error) {
+        res.status(500).json({ ok: false, error: `Could not store the file: ${String(error)}` });
+        return;
+      }
+
+      const item = store.addAttachment(req.params.id, {
+        id: attId,
+        name: safeName,
+        mime: req.get("content-type") ?? "application/octet-stream",
+        size: body.length,
+        intent,
+        target_path: target,
+        file: fileName,
+      }, q("author") ?? "human");
+      if (!item) {
+        rmSync(join(dir, fileName), { force: true });
+        res.status(404).json({ ok: false, error: `Feedback '${req.params.id}' not found.` });
+        return;
+      }
+      res.status(201).json({ ok: true, id: attId, item });
+    },
+  );
+
+  /** Serve an attachment. Not CORS-open: attachments can be private. */
+  app.get("/blob/:id/:attachmentId", (req, res) => {
+    if (!requireTrustedOrigin(req, res)) return;
+    const att = store.getAttachment(req.params.id, req.params.attachmentId);
+    if (!att) {
+      res.status(404).json({ ok: false, error: "Attachment not found." });
+      return;
+    }
+    res.type(att.mime);
+    res.setHeader("Content-Disposition", `inline; filename="${att.name.replace(/"/g, "")}"`);
+    res.sendFile(join(store.blobRoot, req.params.id, att.file));
+  });
+
+  app.delete("/feedback/:id/attachments/:attachmentId", (req, res) => {
+    if (!requireTrustedOrigin(req, res)) return;
+    const att = store.getAttachment(req.params.id, req.params.attachmentId);
+    if (!att || !store.deleteAttachment(req.params.id, req.params.attachmentId)) {
+      res.status(404).json({ ok: false, error: "Attachment not found." });
+      return;
+    }
+    rmSync(join(store.blobRoot, req.params.id, att.file), { force: true });
+    res.json({ ok: true });
+  });
+
   /** Pin hydration + programmatic reads: same filters as loopback_list_feedback. */
   app.get("/feedback", (req, res) => {
-    const parsed = listSchema.safeParse({
+    const parsed = httpListSchema.safeParse({
       ...req.query,
       ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
       ...(req.query.offset ? { offset: Number(req.query.offset) } : {}),
       response_format: "json",
     });
     if (!parsed.success) {
-      res.status(400).json({ ok: false, error: "Invalid query" });
+      res.status(400).json({
+        ok: false,
+        error: "Invalid query",
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      });
       return;
     }
     const { response_format: _rf, ...filters } = parsed.data;
@@ -470,198 +348,31 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
   });
 
   /**
-   * Human triage view — the cross-project queue, built on the Loopback design
-   * system. Rows expand in place for a quick read; the id links to the full
-   * item view, which is where a human can actually act on it.
+   * The dashboard is a built React + shadcn app (source in dashboard/, output
+   * committed to public/dashboard) rather than server-rendered HTML: it needs
+   * real interaction — filtering, editing, file upload — and hand-rolled
+   * template strings were becoming the limit. The build output is committed so
+   * `npx loopback-mcp-server` still needs no React, no Tailwind and no build.
    */
-  app.get("/queue", (req, res) => {
-    const q = (k: string): string | undefined =>
-      typeof req.query[k] === "string" && req.query[k] ? (req.query[k] as string) : undefined;
-    const project = q("project");
-    const status = q("status");
-    const type = q("type");
-    const severity = q("severity");
-    const assignee = q("assignee_agent");
+  const DASHBOARD_DIR = join(__dirname, "..", "public", "dashboard");
+  app.use("/dashboard", express.static(DASHBOARD_DIR, { index: false }));
 
-    // Counts come from the project scope WITHOUT the status filter, so the
-    // tiles stay navigable once you have filtered — otherwise clicking "open"
-    // hides every other tile and you are stuck.
-    const scope = store.list({ project, type, severity, assignee_agent: assignee, limit: 1000, offset: 0 });
-    const counts = new Map<string, number>();
-    for (const i of scope.items) counts.set(i.status, (counts.get(i.status) ?? 0) + 1);
-
-    const LIMIT = 100;
-    const result = store.list({
-      project, status, type, severity, assignee_agent: assignee, limit: LIMIT, offset: 0,
+  /** /queue and /queue/:id are both the SPA; it routes on the path itself. */
+  const serveDashboard = (_req: express.Request, res: express.Response): void => {
+    res.sendFile(join(DASHBOARD_DIR, "index.html"), (err) => {
+      if (err) {
+        res
+          .status(503)
+          .type("html")
+          .send(
+            `<h1>Dashboard not built</h1><p>Run <code>npm run dashboard:build</code>, ` +
+              `or use the JSON API at <a href="/feedback">/feedback</a>.</p>`,
+          );
+      }
     });
-
-    /** Preserve the other filters when toggling one of them. */
-    const href = (patch: Record<string, string | undefined>): string => {
-      const merged: Record<string, string | undefined> = {
-        project, status, type, severity, assignee_agent: assignee, ...patch,
-      };
-      const qs = Object.entries(merged)
-        .filter(([, v]) => v !== undefined && v !== "")
-        .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
-        .join("&");
-      return qs ? `/queue?${qs}` : "/queue";
-    };
-
-    const tiles = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([s, n]) => {
-        const on = status === s;
-        // Clicking an active tile clears it — the tile is the toggle.
-        return `<a class="tile plain${on ? " on" : ""}" href="${href({ status: on ? undefined : s })}"
-          aria-pressed="${on}" title="${on ? "Clear this filter" : `Show only ${escapeHtml(s)}`}"
-          ><span class="lb-badge lb-badge--${escapeHtml(s)}">${n} ${escapeHtml(s)}</span></a>`;
-      })
-      .join(" ");
-
-    const active = [
-      status && ["status", status] as const,
-      type && ["type", type] as const,
-      severity && ["severity", severity] as const,
-      project && ["project", project] as const,
-      assignee && ["assignee", assignee] as const,
-    ].filter(Boolean) as (readonly [string, string])[];
-    const activeChips = active.length
-      ? `<div class="filters"><span class="lb-muted">Filtered by</span>` +
-        active
-          .map(
-            ([k, v]) =>
-              `<a class="chip plain" href="${href({ [k === "assignee" ? "assignee_agent" : k]: undefined })}"
-                title="Remove this filter">${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong> ✕</a>`,
-          )
-          .join("") +
-        `<a class="chip plain" href="/queue" title="Clear everything">clear all</a></div>`
-      : "";
-
-    const summary = tiles + activeChips;
-
-    const rows = result.items
-      .map((i) => {
-        const change = i.links.pr_url
-          ? linkOrText(i.links.pr_url, "PR")
-          : i.links.commit
-            ? `<code class="lb-mono">${escapeHtml(i.links.commit.slice(0, 9))}</code>`
-            : `<span class="lb-muted">—</span>`;
-        const full = store.get(i.id);
-        return `<tr class="row" data-id="${escapeHtml(i.id)}" tabindex="0" aria-expanded="false">
-  <td><span class="chev" aria-hidden="true">▸</span> <a class="plain" href="/queue/${encodeURIComponent(i.id)}"><code class="lb-mono">${escapeHtml(i.id)}</code></a></td>
-  <td><a class="plain f" href="${href({ project: i.project })}" title="Only ${escapeHtml(i.project)}">${escapeHtml(i.project)}</a></td>
-  <td><a class="plain f" href="${href({ severity: i.severity })}" title="Only ${escapeHtml(i.severity)}"><span class="lb-sev lb-sev--${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span></a>
-      <a class="plain f lb-muted" href="${href({ type: i.type })}" title="Only ${escapeHtml(i.type)}">${escapeHtml(i.type)}</a></td>
-  <td class="ttl">${escapeHtml(i.title)}</td>
-  <td><a class="plain f" href="${href({ status: i.status })}" title="Only ${escapeHtml(i.status)}"><span class="lb-badge lb-badge--${escapeHtml(i.status)}">${escapeHtml(i.status)}</span></a></td>
-  <td>${i.assignee_agent ? `<a class="plain f" href="${href({ assignee_agent: i.assignee_agent })}">${escapeHtml(i.assignee_agent)}</a>` : `<span class="lb-muted">—</span>`}</td>
-  <td>${change}</td>
-</tr>
-<tr class="detail" hidden><td colspan="7"><div class="detail-inner">${full ? itemSections(full, { full: false }) : ""}
-<div><a class="lb-btn lb-btn--outline lb-btn--sm plain" href="/queue/${encodeURIComponent(i.id)}">Open full item →</a></div>
-</div></td></tr>`;
-      })
-      .join("\n");
-
-    const body = `<header>
-  <h1 class="lb-title">Loopback queue${project ? ` — ${escapeHtml(project)}` : ""}</h1>
-  <span class="lb-muted">${result.total} item${result.total === 1 ? "" : "s"}${
-    result.total > result.count ? ` · showing first ${result.count}` : ""
-  }${project ? "" : " · all projects"}</span>
-  <div class="bar">
-    <button class="lb-btn lb-btn--outline lb-btn--sm" id="theme">Theme</button>
-  </div>
-</header>
-<p class="lb-muted">Something wrong or clumsy on <em>this</em> page? Pin it — feedback about Loopback
-files to the <code class="lb-mono">loopback</code> project, the same loop everything else uses.
-Click a row for a quick read, or open the id to comment and change status.</p>
-<div class="counts">${summary}</div>
-<table class="lb-table">
-  <thead><tr><th>id</th><th>project</th><th>sev / type</th><th>title</th><th>status</th><th>assignee</th><th>change</th></tr></thead>
-  <tbody>
-${rows || `<tr><td colspan="7" class="lb-muted">Queue is empty.</td></tr>`}
-  </tbody>
-</table>`;
-    res.type("html").send(
-      pageShell(req, `Loopback queue${project ? ` — ${project}` : ""}`, body),
-    );
-  });
-
-  /**
-   * Full item view — deep-linkable, and the surface where a human triages:
-   * read every captured detail, add a comment, move the status. Paste the URL
-   * to an agent or a teammate and they land on the same thing.
-   */
-  app.get("/queue/:id", (req, res) => {
-    const item = store.get(req.params.id);
-    if (!item) {
-      res
-        .status(404)
-        .type("html")
-        .send(
-          pageShell(
-            req,
-            "Not found",
-            `<header><h1 class="lb-title">Item not found</h1></header>
-<p class="lb-muted"><code class="lb-mono">${escapeHtml(req.params.id)}</code> is not in this queue.</p>
-<p><a class="lb-btn lb-btn--outline lb-btn--sm plain" href="/queue">← Back to the queue</a></p>`,
-          ),
-        );
-      return;
-    }
-    const flash = typeof req.query.done === "string" ? req.query.done : "";
-    const meta = (label: string, value: string): string =>
-      `<div class="kv"><span class="lb-label">${escapeHtml(label)}</span><div>${value}</div></div>`;
-
-    const body = `<header>
-  <a class="lb-btn lb-btn--ghost lb-btn--sm plain" href="/queue">← Queue</a>
-  <span class="lb-badge lb-badge--${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
-  <div class="bar">
-    <button class="lb-btn lb-btn--outline lb-btn--sm" id="theme">Theme</button>
-  </div>
-</header>
-<h1 class="lb-title" style="margin:.5rem 0">${escapeHtml(item.title)}</h1>
-<div class="lb-muted"><code class="lb-mono">${escapeHtml(item.id)}</code></div>
-${flash ? `<div class="flash lb-badge lb-badge--fixed">${escapeHtml(flash)}</div>` : ""}
-<div class="lb-card meta">
-  ${meta("Project", escapeHtml(item.project))}
-  ${meta("Severity / type", `<span class="lb-sev lb-sev--${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span> <span class="lb-muted">${escapeHtml(item.type)}</span>`)}
-  ${meta("Source / reporter", `${escapeHtml(item.source)} · ${escapeHtml(item.reporter)}`)}
-  ${meta("Assignee", item.assignee_agent ? escapeHtml(item.assignee_agent) : `<span class="lb-muted">unclaimed</span>`)}
-  ${meta("Route", item.route ? `<code class="lb-mono">${escapeHtml(item.route)}</code>` : `<span class="lb-muted">—</span>`)}
-  ${meta("Created", `<span class="lb-muted">${escapeHtml(item.created_at)}</span>`)}
-  ${meta("Updated", `<span class="lb-muted">${escapeHtml(item.updated_at)}</span>`)}
-  ${item.url ? meta("URL", linkOrText(item.url)) : ""}
-</div>
-<div class="detail-inner">${itemSections(item, { full: true })}</div>
-<div class="actions-grid">
-  <div class="lb-card">
-    <form class="act" method="post" action="/queue/${encodeURIComponent(item.id)}/comment">
-      <label class="lb-label" for="c-body">Add a comment</label>
-      <textarea class="lb-textarea" id="c-body" name="body" required
-                placeholder="What you noticed, decided, or want the agent to know"></textarea>
-      <div class="inline">
-        <input class="lb-input" name="author" value="dj" aria-label="Author">
-        <button class="lb-btn lb-btn--sm" type="submit">Comment</button>
-      </div>
-    </form>
-  </div>
-  <div class="lb-card">
-    <form class="act" method="post" action="/queue/${encodeURIComponent(item.id)}/status">
-      <label class="lb-label" for="s-status">Change status</label>
-      <select class="lb-select" id="s-status" name="status">
-        ${STATUSES.map((s) => `<option value="${s}"${s === item.status ? " selected" : ""}>${s}</option>`).join("")}
-      </select>
-      <input class="lb-input" name="note" placeholder="Why (recorded on the trail)">
-      <div class="inline">
-        <input class="lb-input" name="author" value="dj" aria-label="Author">
-        <button class="lb-btn lb-btn--sm lb-btn--secondary" type="submit">Update</button>
-      </div>
-    </form>
-  </div>
-</div>`;
-    res.type("html").send(pageShell(req, `${item.title} — Loopback`, body));
-  });
+  };
+  app.get("/queue", serveDashboard);
+  app.get("/queue/:id", serveDashboard);
 
   /** Human triage: append to the trail. Trusted origins only. */
   app.post("/queue/:id/comment", (req, res) => {
