@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.7.0 (MIT)
+ * Loopback capture widget v0.7.1 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -602,7 +602,7 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.7.0",
+    version: "0.7.1",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
