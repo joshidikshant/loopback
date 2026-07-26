@@ -14,12 +14,20 @@ import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Paperclip, X } from "lucide-react";
+
+/** The server caps /feedback at 1000; ask for all of it and say so when we hit it. */
+const PAGE = 1000;
 
 /** Query string is the source of truth for filters, so every view is linkable. */
 function readFilters(): Filters {
@@ -59,7 +67,7 @@ export function QueueList({
   useEffect(() => {
     setLoading(true);
     api
-      .list({ project: filters.project }, 500)
+      .list({ project: filters.project }, PAGE)
       .then((r) => {
         setAll(r.items);
         setError(null);
@@ -99,19 +107,24 @@ export function QueueList({
   return (
     <>
       <header className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">
+        <h1 className="text-xl font-semibold tracking-tight">
           Loopback queue{filters.project ? ` — ${filters.project}` : ""}
         </h1>
+        {/* `all.length` is what we fetched, not what exists. At the cap those
+            differ, and reporting the cap as the total is a lie — say "first N"
+            instead. Paging is not worth building for a queue this size. */}
         <span className="text-sm text-muted-foreground">
           {shown.length}
           {shown.length !== all.length ? ` of ${all.length}` : ""} item
           {shown.length === 1 ? "" : "s"}
+          {all.length === PAGE ? ` (first ${PAGE})` : ""}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title, body, id…"
+            aria-label="Search feedback"
             className="h-8 w-56"
           />
           {themeToggle}
@@ -125,53 +138,70 @@ export function QueueList({
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        {/* Badge asChild renders the real <button>, so the chip keeps Badge's
+            own shape and typography instead of a wrapper re-declaring them.
+            Badge is already rounded-full — re-applying it here was a no-op. */}
         {STATUSES.filter((s) => counts.get(s)).map((s) => (
-          <button
-            key={s}
-            onClick={() => toggle("status", s)}
-            aria-pressed={filters.status === s}
-            className={`rounded-full transition ${
-              filters.status === s ? "ring-2 ring-ring ring-offset-1 ring-offset-background" : "hover:opacity-85"
-            }`}
-            title={filters.status === s ? "Clear this filter" : `Show only ${s}`}
-          >
-            <Badge className={`${statusClass[s]} rounded-full`}>
-              {counts.get(s)} {s}
-            </Badge>
-          </button>
+          <Tooltip key={s}>
+            <TooltipTrigger asChild>
+              <Badge
+                asChild
+                className={`${statusClass[s]} cursor-pointer transition ${
+                  filters.status === s
+                    ? "ring-2 ring-ring ring-offset-1 ring-offset-background"
+                    : "hover:opacity-85"
+                }`}
+              >
+                <button onClick={() => toggle("status", s)} aria-pressed={filters.status === s}>
+                  {counts.get(s)} {s}
+                </button>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              {filters.status === s ? "Clear this filter" : `Show only ${s}`}
+            </TooltipContent>
+          </Tooltip>
         ))}
         {active.length > 0 && (
           <div className="ml-1 flex flex-wrap items-center gap-1.5 text-sm">
             <span className="text-muted-foreground">·</span>
             {active.map(([k, v]) => (
-              <button
-                key={k}
-                onClick={() => setFilters((f) => ({ ...f, [k]: undefined }))}
-                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs hover:bg-accent"
-                title="Remove this filter"
-              >
-                {k.replace("_agent", "")}: <strong>{v}</strong>
-                <X className="size-3" />
-              </button>
+              <Tooltip key={k}>
+                <TooltipTrigger asChild>
+                  <Badge asChild variant="outline" className="cursor-pointer gap-1 hover:bg-accent">
+                    <button onClick={() => setFilters((f) => ({ ...f, [k]: undefined }))}>
+                      {k.replace("_agent", "")}: <strong>{v}</strong>
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>Remove this filter</TooltipContent>
+              </Tooltip>
             ))}
-            <button
-              onClick={() => setFilters({})}
-              className="rounded-full border px-2 py-0.5 text-xs hover:bg-accent"
-            >
-              clear all
-            </button>
+            <Badge asChild variant="outline" className="cursor-pointer hover:bg-accent">
+              <button onClick={() => setFilters({})}>clear all</button>
+            </Badge>
           </div>
         )}
       </div>
 
+      {/* role="alert" comes from the Alert primitive — a bare <p> announces
+          nothing, so a screen-reader user just sees an empty table. */}
       {error && (
-        <p className="mt-6 text-sm text-destructive">
-          Could not reach the hub: {error}
-        </p>
+        <Alert variant="destructive" className="mt-6">
+          <AlertTitle>Could not reach the hub</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="mt-4 rounded-lg border">
         <Table>
+          {/* TableCaption is the table's own accessible description, and shadcn
+              renders it below the table — exactly where the loose <p> used to
+              sit. One element now, correctly associated, same position. */}
+          <TableCaption className="mt-3 text-xs">
+            Click a row to open it. Filters live in the URL — this view is linkable.
+          </TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[220px]">id</TableHead>
@@ -184,21 +214,45 @@ export function QueueList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
+            {/* Skeleton rows hold the table's height, so the page does not
+                jump when the data lands. */}
+            {loading &&
+              Array.from({ length: 5 }, (_, n) => (
+                <TableRow key={`sk-${n}`}>
+                  <TableCell colSpan={7}>
+                    <Skeleton className="h-5 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            {/* Two different situations, two different messages: an empty
+                project reads nothing like a filter that excluded everything. */}
             {!loading && shown.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-muted-foreground">
-                  Nothing matches. {active.length > 0 && (
-                    <button className="underline" onClick={() => setFilters({})}>
-                      Clear filters
-                    </button>
-                  )}
+                <TableCell colSpan={7}>
+                  <Empty className="border-0 bg-transparent">
+                    <EmptyHeader>
+                      <EmptyTitle>
+                        {active.length > 0 || q ? "Nothing matches" : "The queue is empty"}
+                      </EmptyTitle>
+                      <EmptyDescription>
+                        {active.length > 0 || q
+                          ? "No item matches the current filters."
+                          : "Pin something with the widget and it lands here."}
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    {(active.length > 0 || q) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFilters({});
+                          setQ("");
+                        }}
+                      >
+                        Clear filters
+                      </Button>
+                    )}
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -208,59 +262,77 @@ export function QueueList({
                 className="cursor-pointer"
                 onClick={() => navigate(`/queue/${encodeURIComponent(i.id)}`)}
               >
+                {/* The row click is a mouse convenience. The id is the real
+                    control — a focusable button in the tab order — so the queue
+                    is navigable without a pointer. Row onClick alone left
+                    keyboard users with no way in at all. */}
                 <TableCell>
-                  <code className="font-mono text-xs">{i.id}</code>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 font-mono text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/queue/${encodeURIComponent(i.id)}`);
+                    }}
+                  >
+                    {i.id}
+                  </Button>
                 </TableCell>
                 <TableCell>
-                  <button
-                    className="hover:underline"
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("project", i.project);
                     }}
                   >
                     {i.project}
-                  </button>
+                  </Button>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  <button
-                    className={`font-mono text-xs font-semibold hover:underline ${severityClass[i.severity]}`}
+                  <Button
+                    variant="link"
+                    className={`h-auto p-0 font-mono text-xs font-semibold ${severityClass[i.severity]}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("severity", i.severity);
                     }}
                   >
                     {i.severity}
-                  </button>{" "}
-                  <button
-                    className="text-xs text-muted-foreground hover:underline"
+                  </Button>{" "}
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-xs text-muted-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("type", i.type);
                     }}
                   >
                     {i.type}
-                  </button>
+                  </Button>
                 </TableCell>
                 <TableCell className="font-medium">
                   {i.title}
                   {(i.attachments?.length ?? 0) > 0 && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      📎 {i.attachments?.length}
+                    <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <Paperclip className="size-3" aria-hidden />
+                      <span className="sr-only">Attachments:</span>
+                      {i.attachments?.length}
                     </span>
                   )}
                 </TableCell>
                 <TableCell>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggle("status", i.status);
-                    }}
-                  >
-                    <Badge className={`${statusClass[i.status]} rounded-full`}>
+                  <Badge asChild className={`${statusClass[i.status]} cursor-pointer`}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle("status", i.status);
+                      }}
+                    >
                       {i.status}
-                    </Badge>
-                  </button>
+                    </button>
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-sm">
                   {i.assignee_agent ?? (
@@ -272,6 +344,8 @@ export function QueueList({
                     <a
                       href={i.links.pr_url}
                       onClick={(e) => e.stopPropagation()}
+                      target="_blank"
+                      rel="noreferrer noopener"
                       className="underline"
                     >
                       PR
@@ -290,9 +364,6 @@ export function QueueList({
         </Table>
       </div>
 
-      <p className="mt-3 text-xs text-muted-foreground">
-        Click a row to open it. Filters live in the URL — this view is linkable.
-      </p>
     </>
   );
 }

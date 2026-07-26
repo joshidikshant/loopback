@@ -27,11 +27,16 @@ import { join } from "node:path";
 const ROOT = process.cwd();
 const CANARY = join("scripts", "impeccable", "canary.html");
 
-// The surfaces a user's eyes land on. `public/dashboard` is the built output —
-// it is what the hub actually serves, and the built CSS is where Impeccable's
-// static analysis can see computed type scales and borders that are invisible
-// in the Tailwind class soup of the .tsx source.
-const TARGETS = ["public/dashboard", "widget", "demo", "design"];
+// Source AND built output, deliberately both.
+//
+// `dashboard/src` catches a Tailwind class like `border-l-2` at its real
+// file:line — Impeccable regex-analyses .tsx, verified with a probe. Scanning
+// only the build would still catch it via the compiled CSS, but attributed to a
+// hashed asset nobody can act on.
+//
+// `public/dashboard` stays because it is what the hub actually serves, and the
+// compiled CSS exposes computed type scales that no per-file source scan sees.
+const TARGETS = ["dashboard/src", "public/dashboard", "widget", "demo", "design"];
 
 let failures = 0;
 const fail = (msg) => {

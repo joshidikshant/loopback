@@ -164,14 +164,22 @@ export const api = {
 export const bytes = (n: number): string =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 
-/** Status drives colour everywhere; keep the mapping in exactly one place. */
+/**
+ * Status drives colour everywhere; keep the mapping in exactly one place.
+ *
+ * Both halves come from design/tokens.css. The paired `-foreground` token is
+ * not decoration — the two themes invert the relationship (light pairs a dark
+ * status colour with white text, dark pairs a bright one with near-black), so
+ * a literal `text-white`/`text-black` is correct in one theme and fails
+ * contrast in the other.
+ */
 export const statusClass: Record<Status, string> = {
-  open: "bg-lb-open text-black/85",
-  triaged: "bg-lb-triaged text-black/85",
-  in_progress: "bg-lb-in-progress text-white",
-  fixed: "bg-lb-fixed text-black/85",
-  verified: "bg-lb-verified text-black/85",
-  wontfix: "bg-lb-wontfix text-black/85",
+  open: "bg-lb-open text-lb-open-foreground",
+  triaged: "bg-lb-triaged text-lb-triaged-foreground",
+  in_progress: "bg-lb-in-progress text-lb-in-progress-foreground",
+  fixed: "bg-lb-fixed text-lb-fixed-foreground",
+  verified: "bg-lb-verified text-lb-verified-foreground",
+  wontfix: "bg-lb-wontfix text-lb-wontfix-foreground",
 };
 
 export const severityClass: Record<Severity, string> = {

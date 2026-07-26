@@ -5,6 +5,56 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed — status badges had a real contrast bug in both themes
+`design/tokens.css` has always shipped a paired `--lb-*-foreground` for every
+status, and inverts the pairing between themes: light mode puts white text on a
+dark status colour, dark mode puts near-black on a bright one. The dashboard
+ignored all six and hardcoded `text-black/85` / `text-white`, which cannot
+follow that inversion — so `open` was near-black on dark orange in light mode,
+and `in_progress` was white on bright blue in dark mode. The tokens were never
+mapped into `@theme`, so the correct utility did not exist. Both fixed;
+`statusClass` now names the paired token.
+
+### Changed — shadcn/ui adoption pass
+Audited every hand-rolled control against what shadcn already ships. Adopted
+`alert`, `alert-dialog`, `attachment`, `empty`, `label`, `skeleton` and
+`tooltip` — **zero new npm dependencies**, since `radix-ui` and
+`class-variance-authority` were already present.
+
+- **Detaching an attachment now asks first.** It deletes the blob irreversibly
+  and previously fired on a single click of a button with no accessible name.
+- **The queue is keyboard-navigable.** Opening an item was a `TableRow`
+  `onClick` and nothing else, so it could not be reached without a pointer. The
+  id is now a real focusable control.
+- **The status "why" note is collected before the control that consumes it.**
+  Reading order was the bug: the note sat *below* the Select, so a top-to-bottom
+  user committed with an empty note — and `store.updateStatus` only writes a
+  trail entry `if (note)`, so those changes landed with no trail at all.
+- Nine form controls gained programmatic names (`Label htmlFor` or `aria-label`);
+  the app previously had exactly one `aria-label` in total.
+- Errors are `Alert` (`role="alert"`) instead of bare paragraphs; loading is
+  `Skeleton` instead of the string "Loading…"; the empty state distinguishes
+  "no items" from "filters exclude everything".
+- Every write shares one in-flight guard, so a slow hub can no longer produce a
+  duplicate comment or a double status write.
+- Attachment rows use shadcn's purpose-built `Attachment`; the intent pill no
+  longer borrows the green "verified" *status* colour to mean "asset".
+- The list asked for 500 and then reported 500 as the true total. It now asks
+  for the server maximum and says "first N" when it hits the cap. Deliberately
+  **not** pagination — the queue has 22 items.
+- Removed dead code: `dialog`, `field` and `separator` were installed and never
+  imported (−6KB CSS). Synced `select` and `sonner` to upstream, which had
+  dropped the `"use client"` directive that a Vite app never needed.
+
+### Added — Impeccable now scans source, and the destructive path has a test
+- `scripts/impeccable-gate.mjs` gained `dashboard/src`. Impeccable regex-analyses
+  `.tsx` (verified with a probe), so a `border-l-2` in source was previously only
+  caught after a rebuild, attributed to a hashed asset nobody can act on.
+- e2e now drives the attachment UI and the new confirm dialog for real —
+  renders, cancel leaves it in place, confirm detaches. Both assertions were
+  verified to fail when deliberately broken. The prior attachment coverage was
+  pure HTTP and never looked at the page.
+
 ### Added
 - **Impeccable design gate** (`scripts/impeccable-gate.mjs`, wired into CI) —
   runs [Impeccable](https://github.com/pbakaus/impeccable)'s 46-rule detector

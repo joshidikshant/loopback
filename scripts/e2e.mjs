@@ -505,6 +505,46 @@ async function main() {
   );
   assert(traversal.status === 400, `a traversal target is refused (got ${traversal.status})`);
 
+  // The assertions above are all HTTP — they never look at the page. Detaching
+  // is irreversible and now sits behind a confirm dialog, so it gets driven for
+  // real: a dialog that silently fails to open would leave the user unable to
+  // delete, with every other gate still green.
+  log("dashboard: attachment renders, and detaching asks first");
+  await page.goto(`${LB}/queue/${encodeURIComponent(contactItem.id)}`);
+  await page.waitForSelector("[data-slot=attachment]", { timeout: 10000 });
+  assert(
+    (await page.textContent("[data-slot=attachment]")).includes("logo.svg"),
+    "the attachment renders on the page with its filename",
+  );
+
+  const remove = page.locator('[aria-label^="Remove attachment"]');
+  assert((await remove.count()) === 1, "the remove control has an accessible name");
+  await remove.first().click();
+  await page.waitForSelector("[role=alertdialog]", { timeout: 5000 });
+  assert(true, "detaching opens a confirmation instead of deleting immediately");
+
+  // Cancel must actually cancel — a confirm that deletes anyway is worse than none.
+  await page.click("[role=alertdialog] button:has-text('Keep it')");
+  await page.waitForSelector("[role=alertdialog]", { state: "detached", timeout: 5000 });
+  const stillThere = await (await fetch(`${LB}/feedback/${contactItem.id}`)).json();
+  assert(
+    (stillThere.attachments?.length ?? 0) === 1,
+    "cancelling the confirm leaves the attachment in place",
+  );
+
+  await remove.first().click();
+  await page.waitForSelector("[role=alertdialog]", { timeout: 5000 });
+  await page.click("[role=alertdialog] button:has-text('Remove')");
+  await page.waitForFunction(
+    () => !document.querySelector("[data-slot=attachment]"),
+    { timeout: 10000 },
+  );
+  const detached = await (await fetch(`${LB}/feedback/${contactItem.id}`)).json();
+  assert(
+    (detached.attachments?.length ?? 0) === 0,
+    "confirming actually detaches it",
+  );
+
   log("cross-origin write is refused");
   // The server is unauthenticated with wide-open CORS so the widget can post
   // /ingest from any origin. That must not extend to mutating the queue, or a

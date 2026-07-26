@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { QueueList } from "@/views/QueueList";
 import { ItemDetail } from "@/views/ItemDetail";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Moon, Sun } from "lucide-react";
 
 /**
@@ -50,14 +51,18 @@ function ThemeToggle(): React.JSX.Element {
 
 export default function App(): React.JSX.Element {
   const { id, navigate } = useRoute();
+  // Tooltip in this shadcn version is a bare Radix Root with no built-in
+  // provider, so the whole tree needs one or every <Tooltip> throws.
   return (
-    <div className="mx-auto max-w-[1180px] px-6 py-8">
-      {id ? (
-        <ItemDetail id={id} navigate={navigate} themeToggle={<ThemeToggle />} />
-      ) : (
-        <QueueList navigate={navigate} themeToggle={<ThemeToggle />} />
-      )}
-      <Toaster position="bottom-right" />
-    </div>
+    <TooltipProvider delayDuration={200}>
+      <div className="mx-auto max-w-[1180px] px-6 py-8">
+        {id ? (
+          <ItemDetail id={id} navigate={navigate} themeToggle={<ThemeToggle />} />
+        ) : (
+          <QueueList navigate={navigate} themeToggle={<ThemeToggle />} />
+        )}
+        <Toaster position="bottom-right" />
+      </div>
+    </TooltipProvider>
   );
 }

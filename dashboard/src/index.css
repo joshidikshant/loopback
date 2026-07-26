@@ -36,6 +36,17 @@
   --color-lb-fixed: var(--lb-fixed);
   --color-lb-verified: var(--lb-verified);
   --color-lb-wontfix: var(--lb-wontfix);
+
+  /* The paired foregrounds. design/tokens.css inverts these between themes —
+     light mode pairs a dark status colour with white text, dark mode pairs a
+     bright one with near-black — so a hardcoded text-white or text-black/85
+     is guaranteed to fail contrast in one theme or the other. */
+  --color-lb-open-foreground: var(--lb-open-foreground);
+  --color-lb-triaged-foreground: var(--lb-triaged-foreground);
+  --color-lb-in-progress-foreground: var(--lb-in-progress-foreground);
+  --color-lb-fixed-foreground: var(--lb-fixed-foreground);
+  --color-lb-verified-foreground: var(--lb-verified-foreground);
+  --color-lb-wontfix-foreground: var(--lb-wontfix-foreground);
   --color-lb-p0: var(--lb-p0);
   --color-lb-p1: var(--lb-p1);
   --color-lb-p2: var(--lb-p2);

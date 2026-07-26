@@ -24,11 +24,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Paperclip, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, File, Paperclip, Pencil, Trash2 } from "lucide-react";
 
 const AUTHOR = "dj";
 
+/**
+ * Loopback's label recipe, in one place.
+ *
+ * 11px is not an off-scale invention — it is the shared `.lb-label` token
+ * (design/components.css: 0.6875rem / 500 / muted-foreground), which the widget
+ * renders identically. Tailwind's scale has no 11px step, so the bracket value
+ * is the only way to say it here; `text-xs` would silently diverge the
+ * dashboard from the widget and the published registry.
+ */
+const LABEL = "text-[11px] font-medium text-muted-foreground";
+
+/**
+ * A read-only display group — NOT a form field. These label values, not
+ * controls, so this stays a <span>: a <label> here would point at nothing.
+ */
 function Section({
   label,
   children,
@@ -38,7 +76,7 @@ function Section({
 }): React.JSX.Element {
   return (
     <div className="grid gap-1.5">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className={LABEL}>{label}</span>
       <div>{children}</div>
     </div>
   );
@@ -67,6 +105,9 @@ export function ItemDetail({
   const [note, setNote] = useState("");
   const [intent, setIntent] = useState<"reference" | "asset">("reference");
   const [target, setTarget] = useState("");
+  // Every write goes through this. Without it, a slow hub means a second click
+  // fires a second POST — a duplicate comment, or a status set twice.
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reload = (): void => {
@@ -83,39 +124,61 @@ export function ItemDetail({
   if (error) {
     return (
       <div className="grid gap-4">
-        <h1 className="text-lg font-semibold">Could not load {id}</h1>
-        <p className="text-sm text-muted-foreground">{error}</p>
+        <h1 className="text-xl font-semibold tracking-tight">Could not load {id}</h1>
+        <Alert variant="destructive">
+          <AlertTitle>The hub did not return this item</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
         <Button variant="outline" onClick={() => navigate("/queue")}>
           Back to the queue
         </Button>
       </div>
     );
   }
-  if (!item) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  // Skeletons in the shape of the real page, so it does not reflow on arrival.
+  if (!item)
+    return (
+      <div className="grid gap-4">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-7 w-2/3" />
+        <Skeleton className="h-28 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
 
   const failed = (item.extra as {
     failed_responses?: { url: string; status: number; body: string }[];
   }).failed_responses;
   const context = (item.extra as { context?: Record<string, unknown> }).context;
 
-  const save = async (): Promise<void> => {
+  /** Every write funnels through here: one in-flight guard, one error path. */
+  const run = async (fn: () => Promise<void>): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
     try {
+      await fn();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = (): Promise<void> =>
+    run(async () => {
       await api.update(id, { ...draft, author: AUTHOR });
       toast.success("Saved — the change is on the audit trail");
       setEditing(false);
       setDraft({});
       reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
-  };
+    });
 
   const upload = async (file: File): Promise<void> => {
     if (intent === "asset" && !target.trim()) {
       toast.error("An asset needs a target path — where should it land in the repo?");
       return;
     }
-    try {
+    return run(async () => {
       await api.attach(id, file, {
         intent,
         target: intent === "asset" ? target.trim() : undefined,
@@ -128,9 +191,7 @@ export function ItemDetail({
       );
       setTarget("");
       reload();
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+    });
   };
 
   return (
@@ -139,7 +200,7 @@ export function ItemDetail({
         <Button variant="ghost" size="sm" onClick={() => navigate("/queue")}>
           <ArrowLeft className="size-4" /> Queue
         </Button>
-        <Badge className={`${statusClass[item.status]} rounded-full`}>
+        <Badge className={statusClass[item.status]}>
           {item.status}
         </Badge>
         <div className="ml-auto flex items-center gap-2">
@@ -166,12 +227,20 @@ export function ItemDetail({
 
       {editing ? (
         <Card className="grid gap-3 p-4">
+          <Label htmlFor="lb-edit-title" className="sr-only">
+            Title
+          </Label>
           <Input
+            id="lb-edit-title"
             value={draft.title ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             className="text-base font-medium"
           />
+          <Label htmlFor="lb-edit-body" className="sr-only">
+            Report
+          </Label>
           <Textarea
+            id="lb-edit-body"
             value={draft.body ?? ""}
             rows={6}
             onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
@@ -181,7 +250,7 @@ export function ItemDetail({
               value={draft.severity}
               onValueChange={(v) => setDraft((d) => ({ ...d, severity: v as Severity }))}
             >
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-32" aria-label="Severity"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SEVERITIES.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -192,14 +261,16 @@ export function ItemDetail({
               value={draft.type}
               onValueChange={(v) => setDraft((d) => ({ ...d, type: v as FeedbackType }))}
             >
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-36" aria-label="Type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button size="sm" onClick={save}>Save</Button>
+            <Button size="sm" onClick={save} disabled={busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setDraft({}); }}>
               Cancel
             </Button>
@@ -280,7 +351,14 @@ export function ItemDetail({
                   <div key={k}>
                     <span className="text-muted-foreground">{k}:</span>{" "}
                     {k === "pr_url" ? (
-                      <a className="underline" href={String(v)}>{String(v)}</a>
+                      <a
+                        className="underline"
+                        href={String(v)}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        {String(v)}
+                      </a>
                     ) : (
                       <code className="font-mono text-xs">{String(v)}</code>
                     )}
@@ -306,48 +384,76 @@ export function ItemDetail({
         </div>
 
         {item.attachments?.map((a) => (
-          <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
-            <Badge
-              className={`rounded-full ${
-                a.intent === "asset" ? statusClass.verified : "bg-muted text-foreground"
-              }`}
-            >
-              {a.intent}
-            </Badge>
-            {a.mime.startsWith("image/") && (
-              <img src={a.url} alt={a.name} className="h-10 w-10 rounded border object-cover" />
-            )}
-            <a className="underline" href={a.url} target="_blank" rel="noreferrer">{a.name}</a>
-            <span className="text-xs text-muted-foreground">{bytes(a.size)}</span>
-            {a.target_path && (
-              <span className="text-xs">
-                → <code className="font-mono">{a.target_path}</code>
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={async () => {
-                await api.detach(id, a.id);
-                toast.success("Removed");
-                reload();
-              }}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </div>
+          <Attachment key={a.id} className="w-full">
+            <AttachmentMedia variant={a.mime.startsWith("image/") ? "image" : "icon"}>
+              {a.mime.startsWith("image/") ? (
+                <img src={a.url} alt="" />
+              ) : (
+                <File aria-hidden />
+              )}
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>
+                <a className="underline" href={a.url} target="_blank" rel="noreferrer noopener">
+                  {a.name}
+                </a>
+              </AttachmentTitle>
+              <AttachmentDescription>
+                {/* `asset` is the consequential one — it gets copied into the
+                    repo — so it takes the emphasis. Reusing the green "verified"
+                    status colour here said nothing true about the attachment. */}
+                <Badge variant={a.intent === "asset" ? "default" : "secondary"}>
+                  {a.intent}
+                </Badge>{" "}
+                {bytes(a.size)}
+                {a.target_path ? ` → ${a.target_path}` : ""}
+              </AttachmentDescription>
+            </AttachmentContent>
+            <AttachmentActions>
+              {/* Detaching deletes the blob and cannot be undone, so it asks. */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <AttachmentAction aria-label={`Remove attachment ${a.name}`} disabled={busy}>
+                    <Trash2 />
+                  </AttachmentAction>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove “{a.name}”?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The file is deleted from the hub. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep it</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() =>
+                        run(async () => {
+                          await api.detach(id, a.id);
+                          toast.success("Removed");
+                          reload();
+                        })
+                      }
+                    >
+                      Remove
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </AttachmentActions>
+          </Attachment>
         ))}
 
         <div className="grid gap-2 sm:grid-cols-[150px_1fr_auto] sm:items-center">
           <Select value={intent} onValueChange={(v) => setIntent(v as "reference" | "asset")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Attachment intent"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="reference">reference</SelectItem>
               <SelectItem value="asset">asset</SelectItem>
             </SelectContent>
           </Select>
           <Input
+            aria-label="Target path in the repo"
             placeholder={
               intent === "asset"
                 ? "Target path in the repo, e.g. public/logos/adpushup.svg"
@@ -357,8 +463,13 @@ export function ItemDetail({
             disabled={intent === "reference"}
             onChange={(e) => setTarget(e.target.value)}
           />
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-            Choose file
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {busy ? "Uploading…" : "Choose file"}
           </Button>
           <input
             ref={fileRef}
@@ -398,8 +509,11 @@ export function ItemDetail({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="grid gap-2 p-4">
-          <span className="text-[11px] font-medium text-muted-foreground">Add a comment</span>
+          <Label htmlFor="lb-comment" className={LABEL}>
+            Add a comment
+          </Label>
           <Textarea
+            id="lb-comment"
             rows={3}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -407,41 +521,52 @@ export function ItemDetail({
           />
           <Button
             size="sm"
-            disabled={!comment.trim()}
-            onClick={async () => {
-              await api.comment(id, comment, AUTHOR);
-              setComment("");
-              toast.success("Comment added");
-              reload();
-            }}
+            disabled={busy || !comment.trim()}
+            onClick={() =>
+              run(async () => {
+                await api.comment(id, comment, AUTHOR);
+                setComment("");
+                toast.success("Comment added");
+                reload();
+              })
+            }
           >
-            Comment
+            {busy ? "Adding…" : "Comment"}
           </Button>
         </Card>
 
+        {/* The note is captured BEFORE the Select, because the Select is what
+            commits it. Reading order was the bug: pick a status first and the
+            note is still empty — and store.updateStatus only writes a trail
+            entry `if (note)`, so the change landed with no trail at all. */}
         <Card className="grid gap-2 p-4">
-          <span className="text-[11px] font-medium text-muted-foreground">Change status</span>
+          <Label htmlFor="lb-status-note" className={LABEL}>
+            Change status
+          </Label>
+          <Input
+            id="lb-status-note"
+            placeholder="Why — recorded on the trail. Type this first."
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
           <Select
             value={item.status}
-            onValueChange={async (v) => {
-              await api.setStatus(id, v as Status, note, AUTHOR);
-              setNote("");
-              toast.success(`Status is now ${v}`);
-              reload();
-            }}
+            onValueChange={(v) =>
+              run(async () => {
+                await api.setStatus(id, v as Status, note, AUTHOR);
+                setNote("");
+                toast.success(`Status is now ${v}`);
+                reload();
+              })
+            }
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Status" disabled={busy}><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder="Why (recorded on the trail)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
         </Card>
       </div>
     </div>
