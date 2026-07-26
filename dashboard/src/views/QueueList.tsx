@@ -281,7 +281,7 @@ export function QueueList({
                   </span>
                 )}
               </div>
-              <div className="font-medium">{i.title}</div>
+              <div className="font-medium break-words">{i.title}</div>
               <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{i.project}</span>
                 <span aria-hidden>·</span>
@@ -431,7 +431,7 @@ export function QueueList({
                     {i.type}
                   </Button>
                 </TableCell>
-                <TableCell className="min-w-[16rem] font-medium whitespace-normal">
+                <TableCell className="min-w-[16rem] font-medium break-words whitespace-normal">
                   {i.title}
                   {(i.attachments?.length ?? 0) > 0 && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -468,7 +468,7 @@ export function QueueList({
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="underline"
+                      className="inline-block min-h-6 underline"
                     >
                       PR
                     </a>

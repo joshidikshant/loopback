@@ -414,7 +414,10 @@ export function createHttpApp(
     const who = (author ?? "").trim() || "human";
     const updated =
       status === "verified" || status === "wontfix"
-        ? store.resolve(req.params.id, status, (note ?? "").trim() || undefined)
+        // `who` was computed above and handed to updateStatus but NOT to
+        // resolve — so the one write that turns a pin green recorded "agent"
+        // even when a human clicked it.
+        ? store.resolve(req.params.id, status, (note ?? "").trim() || undefined, who)
         : store.updateStatus(
             req.params.id,
             status as FeedbackItem["status"],

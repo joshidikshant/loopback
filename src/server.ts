@@ -289,8 +289,8 @@ Prefer verifying before resolving: re-check the UI via your browser tools, or co
         openWorldHint: false,
       },
     },
-    async ({ id, resolution, note }) => {
-      const item = store.resolve(id, resolution, note);
+    async ({ id, resolution, note, agent }) => {
+      const item = store.resolve(id, resolution, note, agent);
       if (!item) return notFound(id);
       return ok(`Resolved ${id} as ${resolution}.`, itemJson(item));
     },

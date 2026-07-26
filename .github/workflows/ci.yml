@@ -40,3 +40,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: node scripts/e2e.mjs
+      # Measures contrast, target size, accessible names, landmarks and motion
+      # in a real browser. Nothing else in CI asserts an a11y property, so every
+      # fix in that class was previously defended by a one-time manual check.
+      - run: node scripts/a11y-gate.mjs

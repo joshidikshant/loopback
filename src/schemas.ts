@@ -324,6 +324,14 @@ export const resolveShape = {
     .max(5000)
     .optional()
     .describe("Optional closing note recorded as a comment"),
+  agent: z
+    .string()
+    .max(80)
+    .optional()
+    .describe(
+      "Who is resolving — your agent name. Recorded on the trail; defaults to 'agent'. " +
+        "This is the write that turns the reporter's pin green, so name yourself.",
+    ),
 };
 
 export const statsShape = {

@@ -497,6 +497,7 @@ export class LoopbackStore {
     id: string,
     resolution: "verified" | "wontfix",
     note?: string,
+    author = "agent",
   ): FeedbackItem | null {
     const res = this.db
       .prepare(
@@ -504,7 +505,10 @@ export class LoopbackStore {
       )
       .run(resolution, resolution, nowIso(), id);
     if (res.changes === 0) return null;
-    if (note) this.addComment(id, "agent", `[${resolution}] ${note}`);
+    // Was hardcoded "agent". This is the write that turns a pin saturated
+    // green — the one moment the product is entirely about — so recording the
+    // wrong actor here undermines the trail precisely where it matters most.
+    if (note) this.addComment(id, author, `[${resolution}] ${note}`);
     return this.get(id);
   }
 

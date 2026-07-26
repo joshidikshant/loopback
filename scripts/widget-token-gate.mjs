@@ -149,6 +149,22 @@ for (const [theme, source] of [
   if (seen.size === statuses.length) pass(`${theme}: all ${statuses.length} status colours are distinct`);
 }
 
+// design/components.css is the fourth token consumer and the one that caused a
+// real regression: it hardcoded `color: oklch(0.985 0 0)` on every .lb-pin,
+// which was survivable while all six status colours were dark and broke the
+// moment --lb-fixed became a pale green. Nothing was checking this file.
+const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-8");
+const hardcoded = [
+  ...componentsCss.matchAll(/^\s*(color|background(?:-color)?)\s*:\s*(oklch\([^)]*\)|#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))/gm),
+];
+if (hardcoded.length === 0) {
+  pass("design/components.css uses tokens throughout — no literal colours");
+} else {
+  for (const [, prop, value] of hardcoded) {
+    fail(`design/components.css hardcodes ${prop}: ${value} — use the paired token`);
+  }
+}
+
 if (failures) {
   console.error(`\nWIDGET TOKEN GATE FAILED — ${failures} mismatch(es)`);
   process.exit(1);

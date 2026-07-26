@@ -83,7 +83,7 @@ function Section({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid min-w-0 gap-1.5">
       <span className={LABEL}>{label}</span>
       <div>{children}</div>
     </div>
@@ -166,6 +166,12 @@ export function ItemDetail({
     // which drops a keyboard user out of the form mid-task. Remember where they
     // were and put them back once the control is enabled again.
     const focused = document.activeElement as HTMLElement | null;
+    // Where to land if the original control is gone or still disabled. Without
+    // it the restore silently no-ops on the two commonest paths: the comment
+    // button stays disabled once the textarea is cleared, and the save button
+    // is unmounted by leaving edit mode — so only the status path ever
+    // recovered. Falling back to the region keeps the user in context.
+    const fallback = focused?.closest("[data-slot=card], header") as HTMLElement | null;
     setBusy(true);
     try {
       await fn();
@@ -174,8 +180,13 @@ export function ItemDetail({
     } finally {
       setBusy(false);
       requestAnimationFrame(() => {
-        if (focused && document.contains(focused) && !(focused as HTMLButtonElement).disabled) {
+        const stillUsable =
+          focused && document.contains(focused) && !(focused as HTMLButtonElement).disabled;
+        if (stillUsable) {
           focused.focus();
+        } else if (fallback && document.contains(fallback)) {
+          fallback.setAttribute("tabindex", "-1");
+          fallback.focus({ preventScroll: true });
         }
       });
     }
@@ -212,7 +223,7 @@ export function ItemDetail({
   };
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4 [&>*]:min-w-0">
       <header className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" className="h-11" onClick={() => navigate("/queue")}>
           <ArrowLeft className="size-4" /> Queue
@@ -245,7 +256,7 @@ export function ItemDetail({
       {/* The h1 lives outside the edit branch. It used to be inside the "not
           editing" side, so entering edit mode left the page with no heading at
           all — heading navigation just stopped working mid-task. */}
-      <h1 className="text-xl font-semibold tracking-tight">{item.title}</h1>
+      <h1 className="text-xl font-semibold tracking-tight break-all">{item.title}</h1>
 
       {editing ? (
         <Card className="grid gap-3 p-4">
@@ -343,7 +354,7 @@ export function ItemDetail({
       <div className="grid gap-3.5">
         {item.body && !editing && (
           <Section label="Report">
-            <div className="whitespace-pre-wrap text-sm">{item.body}</div>
+            <div className="whitespace-pre-wrap break-all text-sm">{item.body}</div>
           </Section>
         )}
         {item.repro_steps.length > 0 && (
@@ -383,7 +394,7 @@ export function ItemDetail({
                     <span className="text-muted-foreground">{k}:</span>{" "}
                     {k === "pr_url" ? (
                       <a
-                        className="underline"
+                        className="inline-block min-h-6 underline"
                         href={String(v)}
                         target="_blank"
                         rel="noreferrer noopener"
@@ -408,7 +419,7 @@ export function ItemDetail({
         {item.url && (
           <Section label="Reported from">
             <a
-              className="text-sm break-all underline"
+              className="inline-block min-h-6 text-sm break-all underline"
               href={item.url}
               target="_blank"
               rel="noreferrer noopener"
@@ -567,7 +578,7 @@ export function ItemDetail({
                 <div className="text-xs text-muted-foreground">
                   {c.author} · {c.created_at}
                 </div>
-                <div className="mt-0.5 whitespace-pre-wrap text-sm">{c.body}</div>
+                <div className="mt-0.5 whitespace-pre-wrap break-all text-sm">{c.body}</div>
               </div>
             ))}
           </div>

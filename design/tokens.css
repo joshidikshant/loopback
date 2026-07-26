@@ -41,6 +41,7 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -87,8 +88,10 @@
   --lb-p2: oklch(0.5 0 0);
   --lb-p3: oklch(0.566 0 0);
 
-  /* The pin: an anchor drawn on someone else's page. */
-  --lb-pin-size: 22px;
+  /* The pin: an anchor drawn on someone else's page. 24px is the SC 2.5.8
+     minimum target size — the widget hardcoded 24 while this token still said
+     22, so the vanilla .lb-pin recipe rendered below the floor. */
+  --lb-pin-size: 24px;
   --lb-pin-radius: 999px 999px 999px 4px;
   --lb-highlight: oklch(0.488 0.243 264.376);
 
@@ -119,6 +122,7 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);

@@ -409,6 +409,8 @@
   var fab = mk("button", "fab", FAB_LABEL);
   fab.setAttribute("part", "fab");
   fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
+  fab.setAttribute("aria-expanded", "false");
+  fab.setAttribute("aria-haspopup", "dialog");
   var tip = mk("div", "tip", TAGLINE);
   tip.setAttribute("role", "tooltip");
   var panel = mk("div", "panel");
@@ -438,10 +440,12 @@
       exitPinMode();
       return;
     }
-    panel.classList.toggle("open");
+    var open = panel.classList.toggle("open");
+    fab.setAttribute("aria-expanded", open ? "true" : "false");
   });
   pinBtn.addEventListener("click", function () {
     panel.classList.remove("open");
+    fab.setAttribute("aria-expanded", "false");
     enterPinMode();
   });
 
@@ -537,8 +541,17 @@
     }
     if (ev.key === "ArrowDown" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowLeft") {
       ev.preventDefault();
-      if (!kbTargets.length) kbTargets = collectTargets();
+      // Recollect each press. Collecting once froze the candidate set to
+      // whatever was on screen at the first keypress, so scrolling never
+      // revealed anything new and only the first viewport was ever pinnable.
+      var previous = kbTargets[kbIndex];
+      kbTargets = collectTargets();
       if (!kbTargets.length) return;
+      // Keep the cursor on the same element across recollection where we can.
+      if (previous) {
+        var at = kbTargets.indexOf(previous);
+        if (at !== -1) kbIndex = at;
+      }
       var step = ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1 : -1;
       kbIndex = (kbIndex + step + kbTargets.length) % kbTargets.length;
       var el = kbTargets[kbIndex];
@@ -581,6 +594,8 @@
     fab.classList.remove("pinmode");
     fab.textContent = FAB_LABEL;
     fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
+  fab.setAttribute("aria-expanded", "false");
+  fab.setAttribute("aria-haspopup", "dialog");
     if (highlight) highlight.remove();
     highlight = null;
     kbTargets = [];
@@ -619,7 +634,11 @@
     // A modal-ish surface needs a role and a name, or it is an anonymous div to
     // assistive tech and Escape does nothing.
     form.setAttribute("role", "dialog");
-    form.setAttribute("aria-modal", "true");
+    // Deliberately NOT aria-modal="true". This panel floats over a host page we
+    // do not own; we cannot mark that page inert and will not trap focus inside
+    // someone else's document. Claiming modality without enforcing it tells a
+    // screen reader the rest of the page is unavailable when it is still fully
+    // reachable — worse than not claiming it.
     form.setAttribute("aria-label", "File Loopback feedback");
     form.style.left = Math.max(8, Math.min(x, window.innerWidth - 320)) + "px";
     form.style.top =
@@ -903,6 +922,23 @@
 
   // Pin elements are pooled by feedback id and reused across renders.
   var pinPool = {};
+  // Resolved targets are cached too. Pooling the ELEMENT alone still left up to
+  // 50 full-document `querySelector` matches per scroll frame against the host
+  // page — once layout thrash was gone, selector matching became the dominant
+  // per-frame cost. Cache the node and re-resolve only when it leaves the DOM.
+  var targetCache = {};
+
+  function resolveTarget(item) {
+    var cached = targetCache[item.id];
+    if (cached && cached.isConnected) return cached;
+    var found = null;
+    try {
+      found = document.querySelector(item.dom_selector);
+    } catch (e) {}
+    if (found) targetCache[item.id] = found;
+    else delete targetCache[item.id];
+    return found;
+  }
 
   function pinSummary(item) {
     return (
@@ -913,8 +949,10 @@
   }
 
   /**
-   * Runs on every scroll frame of the HOST page, so it is written to touch
-   * layout exactly twice: one read pass, then one write pass.
+   * Runs on every scroll frame of the HOST page, so both of its costs are
+   * bounded: layout is touched exactly twice (one read pass, then one write
+   * pass), and selector matching is cached per item rather than re-run per
+   * frame.
    *
    * The previous version interleaved `querySelector` + `getBoundingClientRect`
    * with `appendChild` inside a single loop. Each append invalidates layout, so
@@ -929,10 +967,7 @@
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       if (!item.dom_selector) continue;
-      var target = null;
-      try {
-        target = document.querySelector(item.dom_selector);
-      } catch (e) {}
+      var target = resolveTarget(item);
       if (!target) continue;
       var r = target.getBoundingClientRect();
       measured.push({ item: item, left: r.right - 10, top: r.top - 10, index: measured.length + 1 });
@@ -944,6 +979,7 @@
       if (!seen[id]) {
         pinPool[id].remove();
         delete pinPool[id];
+        delete targetCache[id];
       }
     }
     pinEls = [];
