@@ -72,6 +72,10 @@ if (!existsSync(join(SRC, "node_modules"))) {
   const TMP = join(ROOT, ".dashboard-freshness");
   rmSync(TMP, { recursive: true, force: true });
   try {
+    // sync:tokens first — tokens.generated.css is a build artefact (gitignored),
+    // so calling vite directly only works on a machine where a previous build
+    // left one behind. That made this gate pass locally and fail in CI.
+    execFileSync("npm", ["run", "sync:tokens"], { cwd: SRC, stdio: "pipe" });
     execFileSync("npx", ["vite", "build", "--outDir", TMP, "--emptyOutDir"], {
       cwd: SRC,
       stdio: "pipe",
