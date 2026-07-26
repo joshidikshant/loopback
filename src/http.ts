@@ -227,6 +227,15 @@ ${designCss()}
   a { color: var(--foreground); }
   a.plain { text-decoration: none; }
   a.plain:hover { text-decoration: underline; }
+  .tile { display: inline-block; border-radius: 999px; transition: opacity .12s, box-shadow .12s; }
+  .tile:hover { opacity: .85; text-decoration: none; }
+  .tile.on { box-shadow: 0 0 0 2px var(--ring); border-radius: 999px; }
+  .tile:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 999px; }
+  .filters { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .25rem 0 1rem; font-size: .8125rem; }
+  .chip { border: 1px solid var(--border); border-radius: 999px; padding: .1rem .5rem; font-size: .75rem; }
+  .chip:hover { background: var(--accent); text-decoration: none; }
+  td a.f { text-decoration: none; }
+  td a.f:hover { text-decoration: underline; text-underline-offset: 2px; }
   .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem;
           margin: 1rem 0; padding: 1rem; }
   .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.25rem; }
@@ -466,20 +475,69 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
    * item view, which is where a human can actually act on it.
    */
   app.get("/queue", (req, res) => {
-    const project =
-      typeof req.query.project === "string" ? req.query.project : undefined;
-    const result = store.list({ project, limit: 100, offset: 0 });
+    const q = (k: string): string | undefined =>
+      typeof req.query[k] === "string" && req.query[k] ? (req.query[k] as string) : undefined;
+    const project = q("project");
+    const status = q("status");
+    const type = q("type");
+    const severity = q("severity");
+    const assignee = q("assignee_agent");
 
+    // Counts come from the project scope WITHOUT the status filter, so the
+    // tiles stay navigable once you have filtered — otherwise clicking "open"
+    // hides every other tile and you are stuck.
+    const scope = store.list({ project, type, severity, assignee_agent: assignee, limit: 1000, offset: 0 });
     const counts = new Map<string, number>();
-    for (const i of result.items) {
-      counts.set(i.status, (counts.get(i.status) ?? 0) + 1);
-    }
-    const summary = [...counts.entries()]
-      .map(
-        ([status, n]) =>
-          `<span class="lb-badge lb-badge--${escapeHtml(status)}">${n} ${escapeHtml(status)}</span>`,
-      )
+    for (const i of scope.items) counts.set(i.status, (counts.get(i.status) ?? 0) + 1);
+
+    const LIMIT = 100;
+    const result = store.list({
+      project, status, type, severity, assignee_agent: assignee, limit: LIMIT, offset: 0,
+    });
+
+    /** Preserve the other filters when toggling one of them. */
+    const href = (patch: Record<string, string | undefined>): string => {
+      const merged: Record<string, string | undefined> = {
+        project, status, type, severity, assignee_agent: assignee, ...patch,
+      };
+      const qs = Object.entries(merged)
+        .filter(([, v]) => v !== undefined && v !== "")
+        .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+        .join("&");
+      return qs ? `/queue?${qs}` : "/queue";
+    };
+
+    const tiles = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => {
+        const on = status === s;
+        // Clicking an active tile clears it — the tile is the toggle.
+        return `<a class="tile plain${on ? " on" : ""}" href="${href({ status: on ? undefined : s })}"
+          aria-pressed="${on}" title="${on ? "Clear this filter" : `Show only ${escapeHtml(s)}`}"
+          ><span class="lb-badge lb-badge--${escapeHtml(s)}">${n} ${escapeHtml(s)}</span></a>`;
+      })
       .join(" ");
+
+    const active = [
+      status && ["status", status] as const,
+      type && ["type", type] as const,
+      severity && ["severity", severity] as const,
+      project && ["project", project] as const,
+      assignee && ["assignee", assignee] as const,
+    ].filter(Boolean) as (readonly [string, string])[];
+    const activeChips = active.length
+      ? `<div class="filters"><span class="lb-muted">Filtered by</span>` +
+        active
+          .map(
+            ([k, v]) =>
+              `<a class="chip plain" href="${href({ [k === "assignee" ? "assignee_agent" : k]: undefined })}"
+                title="Remove this filter">${escapeHtml(k)}: <strong>${escapeHtml(v)}</strong> ✕</a>`,
+          )
+          .join("") +
+        `<a class="chip plain" href="/queue" title="Clear everything">clear all</a></div>`
+      : "";
+
+    const summary = tiles + activeChips;
 
     const rows = result.items
       .map((i) => {
@@ -491,11 +549,12 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
         const full = store.get(i.id);
         return `<tr class="row" data-id="${escapeHtml(i.id)}" tabindex="0" aria-expanded="false">
   <td><span class="chev" aria-hidden="true">▸</span> <a class="plain" href="/queue/${encodeURIComponent(i.id)}"><code class="lb-mono">${escapeHtml(i.id)}</code></a></td>
-  <td>${escapeHtml(i.project)}</td>
-  <td><span class="lb-sev lb-sev--${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span> <span class="lb-muted">${escapeHtml(i.type)}</span></td>
+  <td><a class="plain f" href="${href({ project: i.project })}" title="Only ${escapeHtml(i.project)}">${escapeHtml(i.project)}</a></td>
+  <td><a class="plain f" href="${href({ severity: i.severity })}" title="Only ${escapeHtml(i.severity)}"><span class="lb-sev lb-sev--${escapeHtml(i.severity)}">${escapeHtml(i.severity)}</span></a>
+      <a class="plain f lb-muted" href="${href({ type: i.type })}" title="Only ${escapeHtml(i.type)}">${escapeHtml(i.type)}</a></td>
   <td class="ttl">${escapeHtml(i.title)}</td>
-  <td><span class="lb-badge lb-badge--${escapeHtml(i.status)}">${escapeHtml(i.status)}</span></td>
-  <td>${i.assignee_agent ? escapeHtml(i.assignee_agent) : `<span class="lb-muted">—</span>`}</td>
+  <td><a class="plain f" href="${href({ status: i.status })}" title="Only ${escapeHtml(i.status)}"><span class="lb-badge lb-badge--${escapeHtml(i.status)}">${escapeHtml(i.status)}</span></a></td>
+  <td>${i.assignee_agent ? `<a class="plain f" href="${href({ assignee_agent: i.assignee_agent })}">${escapeHtml(i.assignee_agent)}</a>` : `<span class="lb-muted">—</span>`}</td>
   <td>${change}</td>
 </tr>
 <tr class="detail" hidden><td colspan="7"><div class="detail-inner">${full ? itemSections(full, { full: false }) : ""}
@@ -506,7 +565,9 @@ function itemSections(item: FeedbackItem, opts: { full: boolean }): string {
 
     const body = `<header>
   <h1 class="lb-title">Loopback queue${project ? ` — ${escapeHtml(project)}` : ""}</h1>
-  <span class="lb-muted">${result.total} item${result.total === 1 ? "" : "s"}${project ? "" : " · all projects"}</span>
+  <span class="lb-muted">${result.total} item${result.total === 1 ? "" : "s"}${
+    result.total > result.count ? ` · showing first ${result.count}` : ""
+  }${project ? "" : " · all projects"}</span>
   <div class="bar">
     <button class="lb-btn lb-btn--outline lb-btn--sm" id="theme">Theme</button>
   </div>
