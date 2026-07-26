@@ -22,7 +22,19 @@ function useRoute(): { id: string | null; navigate: (to: string) => void } {
     setPath(new URL(to, window.location.origin).pathname);
   }, []);
   const match = /^\/queue\/(.+)$/.exec(path);
-  return { id: match ? decodeURIComponent(match[1]) : null, navigate };
+  const id = match ? decodeURIComponent(match[1]) : null;
+
+  // A client-side route change is invisible to assistive tech: the URL moves,
+  // the title does not, and focus stays wherever the click left it. Updating
+  // the title gives the change a name; moving focus to the new <main> gives a
+  // screen-reader user somewhere to continue reading from.
+  useEffect(() => {
+    document.title = id ? `${id} — Loopback` : "Loopback queue";
+    const main = document.getElementById("lb-main");
+    if (main) main.focus({ preventScroll: true });
+  }, [id]);
+
+  return { id, navigate };
 }
 
 function ThemeToggle(): React.JSX.Element {
@@ -33,6 +45,7 @@ function ThemeToggle(): React.JSX.Element {
     <Button
       variant="outline"
       size="sm"
+      className="size-11"
       onClick={() => {
         const next = document.documentElement.classList.toggle("dark");
         try {
@@ -42,7 +55,10 @@ function ThemeToggle(): React.JSX.Element {
         }
         setDark(next);
       }}
-      aria-label="Toggle theme"
+      // aria-pressed states WHICH theme is on. "Toggle theme" alone never told
+      // you what you were currently in, only that a toggle existed.
+      aria-pressed={dark}
+      aria-label={dark ? "Dark theme on. Switch to light." : "Light theme on. Switch to dark."}
     >
       {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </Button>
@@ -55,14 +71,21 @@ export default function App(): React.JSX.Element {
   // provider, so the whole tree needs one or every <Tooltip> throws.
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="mx-auto max-w-[1180px] px-6 py-8">
+      {/* A real landmark. There was none, so "skip to content" and landmark
+          navigation had nothing to target. tabIndex={-1} is what lets the route
+          change move focus here without putting it in the tab order. */}
+      <main
+        id="lb-main"
+        tabIndex={-1}
+        className="mx-auto max-w-[1180px] px-4 py-8 outline-none sm:px-6"
+      >
         {id ? (
           <ItemDetail id={id} navigate={navigate} themeToggle={<ThemeToggle />} />
         ) : (
           <QueueList navigate={navigate} themeToggle={<ThemeToggle />} />
         )}
         <Toaster position="bottom-right" />
-      </div>
+      </main>
     </TooltipProvider>
   );
 }

@@ -19,6 +19,11 @@
  */
 
 :root {
+  /* Tells the UA which built-ins to draw: scrollbars, form control chrome,
+     spellcheck underlines, the caret. Without it those stay light-mode even
+     when everything we author is dark. */
+  color-scheme: light;
+
   --radius: 0.625rem;
 
   --background: oklch(1 0 0);
@@ -50,25 +55,37 @@
 
   /* ---- Loopback domain tokens ---------------------------------------- */
   /* Feedback status. These are the product's core semantic colors: a pin,
-     a badge, and a queue row must all agree on what "verified" looks like. */
+     a badge, and a queue row must all agree on what "verified" looks like.
+     Six states, six DISTINCT values — `open`/`triaged` and `fixed`/`verified`
+     were previously byte-identical pairs, which collapsed the six-state model
+     into four and, worse, meant the pin went green the moment an agent CLAIMED
+     a fix. "The pin turns green when the fix is verified" is the product's
+     whole thesis, so `fixed` is now a pale, provisional green that visibly has
+     not earned the full one yet.
+     Every pair below clears WCAG AA (>=4.5:1) against its own foreground,
+     measured in a browser, in both themes. */
   --lb-open: oklch(0.555 0.163 48.998);
   --lb-open-foreground: oklch(0.985 0 0);
-  --lb-triaged: oklch(0.555 0.163 48.998);
+  --lb-triaged: oklch(0.476 0.113 61.907);
   --lb-triaged-foreground: oklch(0.985 0 0);
   --lb-in-progress: oklch(0.488 0.243 264.376);
   --lb-in-progress-foreground: oklch(0.985 0 0);
-  --lb-fixed: oklch(0.508 0.118 165.612);
-  --lb-fixed-foreground: oklch(0.985 0 0);
+  --lb-fixed: oklch(0.8 0.09 168);
+  --lb-fixed-foreground: oklch(0.205 0 0);
   --lb-verified: oklch(0.508 0.118 165.612);
   --lb-verified-foreground: oklch(0.985 0 0);
   --lb-wontfix: oklch(0.551 0.027 264.364);
   --lb-wontfix-foreground: oklch(0.985 0 0);
 
-  /* Severity. p0 reuses destructive so "critical" reads the same everywhere. */
+  /* Severity — rendered as TEXT on --background, so each must clear 4.5:1 there.
+     Four levels cannot stay separable by lightness alone once they are all AA
+     compliant (a compliant p3 lands within 0.01 of p2), so the scale carries a
+     second axis: weight. See severityClass/severityWeight in the dashboard.
+     p0 reuses destructive so "critical" reads the same everywhere. */
   --lb-p0: oklch(0.577 0.245 27.325);
-  --lb-p1: oklch(0.666 0.179 58.318);
-  --lb-p2: oklch(0.556 0 0);
-  --lb-p3: oklch(0.708 0 0);
+  --lb-p1: oklch(0.57 0.179 58.318);
+  --lb-p2: oklch(0.5 0 0);
+  --lb-p3: oklch(0.566 0 0);
 
   /* The pin: an anchor drawn on someone else's page. */
   --lb-pin-size: 22px;
@@ -85,6 +102,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -104,15 +123,18 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
 
-  /* Status colors lift in dark mode so they stay legible on a dark surface. */
+  /* Status colors lift in dark mode so they stay legible on a dark surface.
+     The dark ramp mirrors light: `fixed` is the provisional green (here the
+     DEEP one, since dark inverts the relationship) and `verified` the earned
+     one. All six distinct, all AA against their paired foreground. */
   --lb-open: oklch(0.828 0.189 84.429);
   --lb-open-foreground: oklch(0.205 0 0);
-  --lb-triaged: oklch(0.828 0.189 84.429);
+  --lb-triaged: oklch(0.646 0.132 68);
   --lb-triaged-foreground: oklch(0.205 0 0);
   --lb-in-progress: oklch(0.707 0.165 254.624);
   --lb-in-progress-foreground: oklch(0.205 0 0);
-  --lb-fixed: oklch(0.765 0.177 163.223);
-  --lb-fixed-foreground: oklch(0.205 0 0);
+  --lb-fixed: oklch(0.52 0.09 168);
+  --lb-fixed-foreground: oklch(0.985 0 0);
   --lb-verified: oklch(0.765 0.177 163.223);
   --lb-verified-foreground: oklch(0.205 0 0);
   --lb-wontfix: oklch(0.707 0.022 261.325);
@@ -120,8 +142,8 @@
 
   --lb-p0: oklch(0.704 0.191 22.216);
   --lb-p1: oklch(0.828 0.189 84.429);
-  --lb-p2: oklch(0.708 0 0);
-  --lb-p3: oklch(0.556 0 0);
+  --lb-p2: oklch(0.78 0 0);
+  --lb-p3: oklch(0.62 0 0);
 
   --lb-highlight: oklch(0.707 0.165 254.624);
   --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.5);

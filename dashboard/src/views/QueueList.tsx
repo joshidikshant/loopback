@@ -3,6 +3,7 @@ import {
   api,
   statusClass,
   severityClass,
+  severityWeight,
   STATUSES,
   type Filters,
   type Item,
@@ -29,6 +30,23 @@ import { Paperclip, X } from "lucide-react";
 /** The server caps /feedback at 1000; ask for all of it and say so when we hit it. */
 const PAGE = 1000;
 
+/**
+ * How long an item has been sitting. `created_at` was on the type and rendered
+ * nowhere, which meant the queue could not answer the first question anyone
+ * asks of a triage queue: what has been waiting longest?
+ */
+export function age(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  return days < 30 ? `${days}d` : `${Math.round(days / 30)}mo`;
+}
+
 /** Query string is the source of truth for filters, so every view is linkable. */
 function readFilters(): Filters {
   const q = new URLSearchParams(window.location.search);
@@ -42,9 +60,18 @@ function readFilters(): Filters {
   };
 }
 
-function writeFilters(next: Filters): void {
+/** The search term is part of the view, so it belongs in the URL too. */
+function readSearch(): string {
+  return new URLSearchParams(window.location.search).get("q") ?? "";
+}
+
+function writeFilters(next: Filters, search: string): void {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(next)) if (v) q.set(k, v);
+  // The caption promises "this view is linkable". It was not: the search term
+  // lived only in component state, so copying the URL mid-search silently
+  // dropped the thing actually narrowing the list.
+  if (search.trim()) q.set("q", search.trim());
   const qs = q.toString();
   window.history.replaceState({}, "", qs ? `/queue?${qs}` : "/queue");
 }
@@ -58,7 +85,7 @@ export function QueueList({
 }): React.JSX.Element {
   const [filters, setFilters] = useState<Filters>(readFilters);
   const [all, setAll] = useState<Item[]>([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(readSearch);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +103,7 @@ export function QueueList({
       .finally(() => setLoading(false));
   }, [filters.project]);
 
-  useEffect(() => writeFilters(filters), [filters]);
+  useEffect(() => writeFilters(filters, q), [filters, q]);
 
   const counts = useMemo(() => {
     const c = new Map<Status, number>();
@@ -113,19 +140,24 @@ export function QueueList({
         {/* `all.length` is what we fetched, not what exists. At the cap those
             differ, and reporting the cap as the total is a lie — say "first N"
             instead. Paging is not worth building for a queue this size. */}
-        <span className="text-sm text-muted-foreground">
-          {shown.length}
-          {shown.length !== all.length ? ` of ${all.length}` : ""} item
-          {shown.length === 1 ? "" : "s"}
-          {all.length === PAGE ? ` (first ${PAGE})` : ""}
+        {/* role=status so filtering and searching announce their result count.
+            Silently swapping the rows told a screen-reader user nothing. */}
+        <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
+          {loading
+            ? "Loading feedback…"
+            : `${shown.length}${shown.length !== all.length ? ` of ${all.length}` : ""} item${
+                shown.length === 1 ? "" : "s"
+              }${all.length === PAGE ? ` (first ${PAGE})` : ""}`}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        {/* min-w-0 lets this shrink instead of pushing the page wider than the
+            viewport; w-56 alone made the flex item refuse to give ground. */}
+        <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title, body, id…"
             aria-label="Search feedback"
-            className="h-8 w-56"
+            className="h-11 w-full min-w-0 sm:w-56"
           />
           {themeToggle}
         </div>
@@ -141,21 +173,30 @@ export function QueueList({
         {/* Badge asChild renders the real <button>, so the chip keeps Badge's
             own shape and typography instead of a wrapper re-declaring them.
             Badge is already rounded-full — re-applying it here was a no-op. */}
+        {/* The chip is the visual, but the hit area is 44px tall: the padded
+            <button> wraps it, so the target clears SC 2.5.8 without inflating
+            the badge itself. */}
         {STATUSES.filter((s) => counts.get(s)).map((s) => (
           <Tooltip key={s}>
             <TooltipTrigger asChild>
-              <Badge
-                asChild
-                className={`${statusClass[s]} cursor-pointer transition ${
-                  filters.status === s
-                    ? "ring-2 ring-ring ring-offset-1 ring-offset-background"
-                    : "hover:opacity-85"
+              <button
+                onClick={() => toggle("status", s)}
+                aria-pressed={filters.status === s}
+                aria-label={`${counts.get(s)} ${s}. ${
+                  filters.status === s ? "Clear this filter" : `Show only ${s} items`
                 }`}
+                className="inline-flex h-11 items-center rounded-md px-1"
               >
-                <button onClick={() => toggle("status", s)} aria-pressed={filters.status === s}>
+                <Badge
+                  className={`${statusClass[s]} pointer-events-none transition ${
+                    filters.status === s
+                      ? "ring-2 ring-ring ring-offset-1 ring-offset-background"
+                      : "hover:opacity-85"
+                  }`}
+                >
                   {counts.get(s)} {s}
-                </button>
-              </Badge>
+                </Badge>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               {filters.status === s ? "Clear this filter" : `Show only ${s}`}
@@ -168,19 +209,32 @@ export function QueueList({
             {active.map(([k, v]) => (
               <Tooltip key={k}>
                 <TooltipTrigger asChild>
-                  <Badge asChild variant="outline" className="cursor-pointer gap-1 hover:bg-accent">
-                    <button onClick={() => setFilters((f) => ({ ...f, [k]: undefined }))}>
+                  <button
+                    onClick={() => setFilters((f) => ({ ...f, [k]: undefined }))}
+                    aria-label={`Remove the ${k.replace("_agent", "")} filter, currently ${v}`}
+                    className="inline-flex h-11 items-center rounded-md px-1"
+                  >
+                    <Badge variant="outline" className="pointer-events-none gap-1">
                       {k.replace("_agent", "")}: <strong>{v}</strong>
                       <X className="size-3" />
-                    </button>
-                  </Badge>
+                    </Badge>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>Remove this filter</TooltipContent>
               </Tooltip>
             ))}
-            <Badge asChild variant="outline" className="cursor-pointer hover:bg-accent">
-              <button onClick={() => setFilters({})}>clear all</button>
-            </Badge>
+            <button
+              onClick={() => {
+                setFilters({});
+                setQ("");
+              }}
+              aria-label="Clear all filters and search"
+              className="inline-flex h-11 items-center rounded-md px-1"
+            >
+              <Badge variant="outline" className="pointer-events-none">
+                clear all
+              </Badge>
+            </button>
           </div>
         )}
       </div>
@@ -194,7 +248,71 @@ export function QueueList({
         </Alert>
       )}
 
-      <div className="mt-4 rounded-lg border">
+      {/* ---- Phone: a card per item ----------------------------------------
+          The table is ~1334px wide intrinsically. At 375px roughly a quarter of
+          it was visible and the title column started past the right edge, so a
+          phone showed ids and nothing readable. A table forced through a narrow
+          viewport is the wrong shape; below `sm` this is a list. */}
+      <div className="mt-4 grid gap-2 sm:hidden">
+        {loading &&
+          Array.from({ length: 4 }, (_, n) => (
+            <Skeleton key={`msk-${n}`} className="h-24 w-full rounded-lg" />
+          ))}
+        {!loading &&
+          shown.map((i) => (
+            <button
+              key={i.id}
+              onClick={() => navigate(`/queue/${encodeURIComponent(i.id)}`)}
+              className="grid gap-1.5 rounded-lg border p-3 text-left hover:bg-muted/50"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={statusClass[i.status]}>{i.status}</Badge>
+                <span
+                  className={`font-mono text-xs ${severityClass[i.severity]} ${severityWeight[i.severity]}`}
+                >
+                  {i.severity}
+                </span>
+                <span className="text-xs text-muted-foreground">{i.type}</span>
+                {(i.attachments?.length ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Paperclip className="size-3" aria-hidden />
+                    <span className="sr-only">Attachments:</span>
+                    {i.attachments?.length}
+                  </span>
+                )}
+              </div>
+              <div className="font-medium">{i.title}</div>
+              <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                <span>{i.project}</span>
+                <span aria-hidden>·</span>
+                <span>{age(i.created_at)}</span>
+                {i.assignee_agent && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>{i.assignee_agent}</span>
+                  </>
+                )}
+              </div>
+            </button>
+          ))}
+        {!loading && shown.length === 0 && (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>
+                {active.length > 0 || q ? "Nothing matches" : "The queue is empty"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {active.length > 0 || q
+                  ? "No item matches the current filters."
+                  : "Pin something with the widget and it lands here."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </div>
+
+      {/* ---- Tablet and up: the full table ---- */}
+      <div className="mt-4 hidden rounded-lg border sm:block">
         <Table>
           {/* TableCaption is the table's own accessible description, and shadcn
               renders it below the table — exactly where the loose <p> used to
@@ -204,10 +322,11 @@ export function QueueList({
           </TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[220px]">id</TableHead>
+              <TableHead>id</TableHead>
               <TableHead>project</TableHead>
               <TableHead>sev / type</TableHead>
               <TableHead>title</TableHead>
+              <TableHead>age</TableHead>
               <TableHead>status</TableHead>
               <TableHead>assignee</TableHead>
               <TableHead>change</TableHead>
@@ -219,7 +338,7 @@ export function QueueList({
             {loading &&
               Array.from({ length: 5 }, (_, n) => (
                 <TableRow key={`sk-${n}`}>
-                  <TableCell colSpan={7}>
+                  <TableCell colSpan={8}>
                     <Skeleton className="h-5 w-full" />
                   </TableCell>
                 </TableRow>
@@ -228,7 +347,7 @@ export function QueueList({
                 project reads nothing like a filter that excluded everything. */}
             {!loading && shown.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={8}>
                   <Empty className="border-0 bg-transparent">
                     <EmptyHeader>
                       <EmptyTitle>
@@ -269,7 +388,7 @@ export function QueueList({
                 <TableCell>
                   <Button
                     variant="link"
-                    className="h-auto p-0 font-mono text-xs"
+                    className="h-auto min-h-6 min-w-6 p-0 font-mono text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/queue/${encodeURIComponent(i.id)}`);
@@ -281,7 +400,7 @@ export function QueueList({
                 <TableCell>
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-sm"
+                    className="h-auto min-h-6 min-w-6 p-0 text-sm"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("project", i.project);
@@ -293,7 +412,7 @@ export function QueueList({
                 <TableCell className="whitespace-nowrap">
                   <Button
                     variant="link"
-                    className={`h-auto p-0 font-mono text-xs font-semibold ${severityClass[i.severity]}`}
+                    className={`h-auto min-h-6 min-w-6 p-0 font-mono text-xs ${severityClass[i.severity]} ${severityWeight[i.severity]}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("severity", i.severity);
@@ -303,7 +422,7 @@ export function QueueList({
                   </Button>{" "}
                   <Button
                     variant="link"
-                    className="h-auto p-0 text-xs text-muted-foreground"
+                    className="h-auto min-h-6 min-w-6 p-0 text-xs text-muted-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("type", i.type);
@@ -312,7 +431,7 @@ export function QueueList({
                     {i.type}
                   </Button>
                 </TableCell>
-                <TableCell className="font-medium">
+                <TableCell className="min-w-[16rem] font-medium whitespace-normal">
                   {i.title}
                   {(i.attachments?.length ?? 0) > 0 && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -322,8 +441,11 @@ export function QueueList({
                     </span>
                   )}
                 </TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  <time dateTime={i.created_at}>{age(i.created_at)}</time>
+                </TableCell>
                 <TableCell>
-                  <Badge asChild className={`${statusClass[i.status]} cursor-pointer`}>
+                  <Badge asChild className={`${statusClass[i.status]} min-h-6 cursor-pointer`}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

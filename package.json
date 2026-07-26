@@ -21,7 +21,8 @@
     "clean": "rm -rf dist",
     "dashboard:build": "npm --prefix dashboard run build",
     "dashboard-gate": "node scripts/dashboard-gate.mjs",
-    "impeccable-gate": "node scripts/impeccable-gate.mjs"
+    "impeccable-gate": "node scripts/impeccable-gate.mjs",
+    "widget-token-gate": "node scripts/widget-token-gate.mjs"
   },
   "repository": {
     "type": "git",

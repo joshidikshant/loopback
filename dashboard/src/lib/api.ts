@@ -99,6 +99,24 @@ async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * For the form-encoded endpoints, which answer with a redirect rather than JSON.
+ * They still say something useful when they refuse, and throwing a fixed string
+ * ("Comment failed") threw that away — the user saw a toast that named the
+ * action but never the reason.
+ */
+async function okOrThrow(res: Response, action: string): Promise<Response> {
+  if (res.ok) return res;
+  const text = await res.text().catch(() => "");
+  let reason = "";
+  try {
+    reason = (JSON.parse(text) as { error?: string }).error ?? "";
+  } catch {
+    reason = text.slice(0, 200).trim();
+  }
+  throw new Error(reason ? `${action}: ${reason}` : `${action} (${res.status} ${res.statusText})`);
+}
+
 export const api = {
   list(filters: Filters, limit = 200): Promise<ListResult> {
     const qs = new URLSearchParams({ limit: String(limit) });
@@ -123,7 +141,7 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ body, author }),
-    }).then((r) => (r.ok ? r : Promise.reject(new Error("Comment failed"))));
+    }).then((r) => okOrThrow(r, "Comment failed"));
   },
 
   setStatus(id: string, status: Status, note: string, author: string): Promise<unknown> {
@@ -131,7 +149,7 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ status, note, author }),
-    }).then((r) => (r.ok ? r : Promise.reject(new Error("Status change failed"))));
+    }).then((r) => okOrThrow(r, "Status change failed"));
   },
 
   /**
@@ -187,4 +205,20 @@ export const severityClass: Record<Severity, string> = {
   p1: "text-lb-p1",
   p2: "text-lb-p2",
   p3: "text-lb-p3",
+};
+
+/**
+ * The second axis of the severity scale.
+ *
+ * All four levels have to clear 4.5:1 against the page background, and once
+ * they do they cannot also stay separable by lightness — a compliant p3 lands
+ * within 0.01 of p2 in oklch. Weight carries the hierarchy that colour alone
+ * can no longer express, which also means severity survives being read in
+ * greyscale or by someone who cannot distinguish the hues at all.
+ */
+export const severityWeight: Record<Severity, string> = {
+  p0: "font-bold",
+  p1: "font-semibold",
+  p2: "font-medium",
+  p3: "font-normal",
 };

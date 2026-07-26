@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.7.1 (MIT)
+ * Loopback capture widget v0.9.0 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -43,18 +43,37 @@
   var consoleBuf = [];
   var networkBuf = [];
 
+  // Shallow, bounded summary — NOT JSON.stringify.
+  //
+  // This runs inside a patched console.* on someone else's page, so it is on the
+  // hot path of every log the host app makes. A full stringify walks the entire
+  // object graph (and can hit a huge redux store or a DOM-heavy payload) only
+  // for the result to be truncated to 500 chars a moment later. This costs
+  // O(top-level keys) instead of O(whole tree).
+  function brief(a) {
+    if (typeof a === "string") return a;
+    if (a === null || a === undefined) return String(a);
+    if (typeof a !== "object") return String(a);
+    if (a instanceof Error) return a.name + ": " + a.message;
+    if (Array.isArray(a)) return "[Array(" + a.length + ")]";
+    if (a.nodeType === 1) return "<" + a.tagName.toLowerCase() + ">";
+    try {
+      var keys = Object.keys(a);
+      var parts = [];
+      for (var i = 0; i < keys.length && i < 6; i++) {
+        var v = a[keys[i]];
+        var t = typeof v;
+        parts.push(keys[i] + ":" + (t === "object" && v !== null ? (Array.isArray(v) ? "[…]" : "{…}") : String(v).slice(0, 40)));
+      }
+      return "{" + parts.join(",") + (keys.length > 6 ? ",…" : "") + "}";
+    } catch (e) {
+      return String(a);
+    }
+  }
+
   function pushConsole(level, args) {
     try {
-      var text = Array.prototype.map
-        .call(args, function (a) {
-          if (typeof a === "string") return a;
-          try {
-            return JSON.stringify(a);
-          } catch (e) {
-            return String(a);
-          }
-        })
-        .join(" ");
+      var text = Array.prototype.map.call(args, brief).join(" ");
       consoleBuf.push("[" + level + "] " + text.slice(0, 500));
       if (consoleBuf.length > 30) consoleBuf.shift();
     } catch (e) {
@@ -243,6 +262,15 @@
   // The widget also owns its theme deliberately: it follows the VIEWER's
   // prefers-color-scheme, never the host page's palette, so a feedback tool
   // stays recognisable and legible on every site instead of camouflaging.
+  // These literals are a transcription of design/tokens.css — the widget cannot
+  // @import it (it ships as one file, injected into arbitrary pages), so the
+  // copy is deliberate. It is NOT allowed to drift: scripts/widget-token-gate.mjs
+  // parses both files and fails the build on any mismatch. It caught two real
+  // divergences the first time it ran (--lb-border and --lb-input had crept to
+  // 15%/20% against tokens.css's 10%/15%).
+  //
+  // Mapping note: --lb-bg is the widget's floating surface, so it tracks
+  // --popover, not --background. The gate encodes that pairing explicitly.
   var TOKENS =
     ":host{all:initial}" +
     ".lb-root{display:contents;color-scheme:light;" +
@@ -251,10 +279,12 @@
     "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.922 0 0);" +
     "--lb-primary:oklch(0.205 0 0);--lb-primary-fg:oklch(0.985 0 0);" +
     "--lb-ring:oklch(0.708 0 0);--lb-radius:0.625rem;" +
-    "--lb-open:oklch(0.555 0.163 48.998);--lb-triaged:oklch(0.555 0.163 48.998);" +
-    "--lb-in-progress:oklch(0.488 0.243 264.376);" +
-    "--lb-fixed:oklch(0.508 0.118 165.612);--lb-verified:oklch(0.508 0.118 165.612);" +
-    "--lb-wontfix:oklch(0.551 0.027 264.364);--lb-on-status:oklch(0.985 0 0);" +
+    "--lb-open:oklch(0.555 0.163 48.998);--lb-open-fg:oklch(0.985 0 0);" +
+    "--lb-triaged:oklch(0.476 0.113 61.907);--lb-triaged-fg:oklch(0.985 0 0);" +
+    "--lb-in-progress:oklch(0.488 0.243 264.376);--lb-in-progress-fg:oklch(0.985 0 0);" +
+    "--lb-fixed:oklch(0.8 0.09 168);--lb-fixed-fg:oklch(0.205 0 0);" +
+    "--lb-verified:oklch(0.508 0.118 165.612);--lb-verified-fg:oklch(0.985 0 0);" +
+    "--lb-wontfix:oklch(0.551 0.027 264.364);--lb-wontfix-fg:oklch(0.985 0 0);" +
     "--lb-highlight:oklch(0.488 0.243 264.376);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.18);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.22);" +
     "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.2);" +
@@ -262,13 +292,15 @@
     "@media (prefers-color-scheme:dark){.lb-root{color-scheme:dark;" +
     "--lb-bg:oklch(0.205 0 0);--lb-fg:oklch(0.985 0 0);" +
     "--lb-muted:oklch(0.269 0 0);--lb-muted-fg:oklch(0.708 0 0);" +
-    "--lb-border:oklch(1 0 0/15%);--lb-input:oklch(1 0 0/20%);" +
+    "--lb-border:oklch(1 0 0/10%);--lb-input:oklch(1 0 0/15%);" +
     "--lb-primary:oklch(0.922 0 0);--lb-primary-fg:oklch(0.205 0 0);" +
     "--lb-ring:oklch(0.556 0 0);" +
-    "--lb-open:oklch(0.828 0.189 84.429);--lb-triaged:oklch(0.828 0.189 84.429);" +
-    "--lb-in-progress:oklch(0.707 0.165 254.624);" +
-    "--lb-fixed:oklch(0.765 0.177 163.223);--lb-verified:oklch(0.765 0.177 163.223);" +
-    "--lb-wontfix:oklch(0.707 0.022 261.325);--lb-on-status:oklch(0.205 0 0);" +
+    "--lb-open:oklch(0.828 0.189 84.429);--lb-open-fg:oklch(0.205 0 0);" +
+    "--lb-triaged:oklch(0.646 0.132 68);--lb-triaged-fg:oklch(0.205 0 0);" +
+    "--lb-in-progress:oklch(0.707 0.165 254.624);--lb-in-progress-fg:oklch(0.205 0 0);" +
+    "--lb-fixed:oklch(0.52 0.09 168);--lb-fixed-fg:oklch(0.985 0 0);" +
+    "--lb-verified:oklch(0.765 0.177 163.223);--lb-verified-fg:oklch(0.205 0 0);" +
+    "--lb-wontfix:oklch(0.707 0.022 261.325);--lb-wontfix-fg:oklch(0.205 0 0);" +
     "--lb-highlight:oklch(0.707 0.165 254.624);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.5);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.55);" +
     "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.6)}}";
@@ -282,9 +314,11 @@
   styleEl.textContent =
     TOKENS +
     "*{box-sizing:border-box;font-family:var(--lb-font)}" +
-    ".fab{position:fixed;bottom:18px;right:18px;z-index:2147483000;background:var(--lb-primary);color:var(--lb-primary-fg);border:none;border-radius:999px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;box-shadow:var(--lb-shadow-md)}" +
+    // Visually hidden but present for assistive tech — the live regions.
+    ".sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}" +
+    ".fab{position:fixed;bottom:18px;right:18px;z-index:2147483000;background:var(--lb-primary);color:var(--lb-primary-fg);border:none;border-radius:999px;min-height:44px;padding:10px 18px;font-size:14px;font-weight:500;cursor:pointer;box-shadow:var(--lb-shadow-md)}" +
     ".fab:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
-    ".fab.pinmode{background:var(--lb-in-progress);color:var(--lb-on-status)}" +
+    ".fab.pinmode{background:var(--lb-in-progress);color:var(--lb-in-progress-fg)}" +
     // Own tooltip rather than title="": a native tooltip waits ~1s, is styled by
     // the OS, and can't be shown on keyboard focus.
     ".tip{position:fixed;bottom:62px;right:18px;z-index:2147483000;max-width:250px;" +
@@ -304,29 +338,56 @@
     ".pinlist{margin:8px 0 0;max-height:180px;overflow:auto;font-size:12px}" +
     ".pinrow{padding:6px;border-radius:" + RADIUS_SM + ";border:1px solid var(--lb-border);margin:4px 0;color:var(--lb-fg)}" +
     ".pinrow small{color:var(--lb-muted-fg)}" +
-    ".badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;color:var(--lb-on-status);margin-right:6px}" +
-    ".b-open{background:var(--lb-open)}.b-triaged{background:var(--lb-triaged)}" +
-    ".b-in_progress{background:var(--lb-in-progress)}.b-fixed{background:var(--lb-fixed)}" +
-    ".b-verified{background:var(--lb-verified)}.b-wontfix{background:var(--lb-wontfix)}" +
+    ".badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;margin-right:6px}" +
+    // Each status carries its own paired foreground. A single --lb-on-status
+    // could not stay legible once `fixed` became a pale green in light mode.
+    ".b-open{background:var(--lb-open);color:var(--lb-open-fg)}" +
+    ".b-triaged{background:var(--lb-triaged);color:var(--lb-triaged-fg)}" +
+    ".b-in_progress{background:var(--lb-in-progress);color:var(--lb-in-progress-fg)}" +
+    ".b-fixed{background:var(--lb-fixed);color:var(--lb-fixed-fg)}" +
+    ".b-verified{background:var(--lb-verified);color:var(--lb-verified-fg)}" +
+    ".b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
     ".hl{position:fixed;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
     ".form{position:fixed;z-index:2147483001;width:300px;max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
-    ".form input,.form textarea,.form select{width:100%;margin:3px 0 8px;padding:7px;border:1px solid var(--lb-input);border-radius:" + RADIUS_MD + ";font-size:13px;background:var(--lb-bg);color:var(--lb-fg);font-family:inherit}" +
+    // 16px, not 13px: iOS Safari zooms the viewport on focus for anything under
+    // 16px, and this panel is position:fixed — the zoom leaves it half off-screen
+    // with no way back. Font size here is a layout constraint, not taste.
+    ".form input,.form textarea,.form select{width:100%;margin:3px 0 8px;padding:9px;border:1px solid var(--lb-input);border-radius:" + RADIUS_MD + ";font-size:16px;background:var(--lb-bg);color:var(--lb-fg);font-family:inherit;min-height:44px}" +
     ".form input:focus-visible,.form textarea:focus-visible,.form select:focus-visible{outline:2px solid var(--lb-ring);outline-offset:-1px}" +
-    ".form textarea{height:52px;resize:vertical}" +
-    ".form label{font-size:11px;font-weight:500;color:var(--lb-muted-fg)}" +
-    ".form .note-ctx{color:var(--lb-fixed)}.form .note-net{color:var(--lb-open)}" +
+    ".form textarea{height:60px;resize:vertical}" +
+    ".form label{display:block;font-size:11px;font-weight:500;color:var(--lb-muted-fg)}" +
+    // Status notes are prose, not labels — they get their own class so no
+    // <label> has to exist purely to inherit type styling.
+    ".form .note{display:block;font-size:11px;font-weight:500;margin-bottom:6px}" +
+    ".form .note-ctx{color:var(--lb-verified)}.form .note-net{color:var(--lb-open)}" +
+    ".form [aria-invalid=true]{border-color:var(--lb-open);outline-color:var(--lb-open)}" +
     ".row{display:flex;gap:6px}.row>*{flex:1}" +
     ".actions{display:flex;gap:8px;margin-top:4px}" +
     ".actions button{flex:1;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
     ".actions button:hover{background:var(--lb-muted)}" +
     ".actions .primary{background:var(--lb-primary);color:var(--lb-primary-fg);border-color:transparent}" +
-    ".pin{position:fixed;z-index:2147482999;width:22px;height:22px;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-on-status);font-size:11px;font-weight:600;line-height:22px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm)}" +
-    ".pin.b-open{background:var(--lb-open)}.pin.b-triaged{background:var(--lb-triaged)}" +
-    ".pin.b-in_progress{background:var(--lb-in-progress)}.pin.b-fixed{background:var(--lb-fixed)}" +
-    ".pin.b-verified{background:var(--lb-verified)}.pin.b-wontfix{background:var(--lb-wontfix)}" +
+    // 24px clears the 24x24 minimum of WCAG 2.5.8. The pin is an anchor drawn at
+    // a precise point on someone else's page, so it cannot grow to 44 without
+    // lying about what it marks; the panel's pin list is the large-target route
+    // to the same actions.
+    ".pin{position:fixed;z-index:2147482999;width:24px;height:24px;padding:0;border:none;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
+    ".pin:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
+    ".pin.b-open{background:var(--lb-open);color:var(--lb-open-fg)}" +
+    ".pin.b-triaged{background:var(--lb-triaged);color:var(--lb-triaged-fg)}" +
+    ".pin.b-in_progress{background:var(--lb-in-progress);color:var(--lb-in-progress-fg)}" +
+    ".pin.b-fixed{background:var(--lb-fixed);color:var(--lb-fixed-fg)}" +
+    ".pin.b-verified{background:var(--lb-verified);color:var(--lb-verified-fg)}" +
+    ".pin.b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
     ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:var(--lb-primary);color:var(--lb-primary-fg);padding:9px 14px;border-radius:" + RADIUS_MD + ";font-size:12.5px;box-shadow:var(--lb-shadow-md);max-width:320px}" +
     ".pin.pulse{animation:lbpulse 1.1s ease-out 3}" +
-    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring)}to{box-shadow:0 0 0 13px rgb(0 0 0/0)}}";
+    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring)}to{box-shadow:0 0 0 13px rgb(0 0 0/0)}}" +
+    // Reduced motion resolves to the DESIGNED STILL STATE, it does not just
+    // delete feedback: the pin keeps a steady ring so "this one is new" still
+    // reads, it simply stops pulsing. A blanket animation:none would remove the
+    // signal along with the movement.
+    "@media (prefers-reduced-motion:reduce){" +
+    ".pin.pulse{animation:none;box-shadow:0 0 0 3px var(--lb-ring)}" +
+    ".tip{transition:none}}";
   root.appendChild(styleEl);
 
   function mk(tag, className, text) {
@@ -384,14 +445,38 @@
     enterPinMode();
   });
 
+  // One persistent live region, created up front. A toast that is merely
+  // appended to the DOM announces nothing — every message the widget produces
+  // (validation, send failures, "Filed <id>", agent status changes) was
+  // invisible to assistive tech. Two regions because polite messages must not
+  // preempt each other while an error has to interrupt.
+  var livePolite = mk("div", "sr");
+  livePolite.setAttribute("role", "status");
+  livePolite.setAttribute("aria-live", "polite");
+  var liveAssertive = mk("div", "sr");
+  liveAssertive.setAttribute("role", "alert");
+  liveAssertive.setAttribute("aria-live", "assertive");
+  ui.appendChild(livePolite);
+  ui.appendChild(liveAssertive);
+
+  function announce(msg, urgent) {
+    var region = urgent ? liveAssertive : livePolite;
+    // Clear first: repeating identical text is not re-announced otherwise.
+    region.textContent = "";
+    setTimeout(function () {
+      region.textContent = msg;
+    }, 50);
+  }
+
   var toastCount = 0;
-  function toast(msg) {
+  function toast(msg, urgent) {
     var el = document.createElement("div");
     el.className = "toast";
     el.style.bottom = 70 + toastCount * 44 + "px";
     toastCount++;
     el.textContent = msg;
     ui.appendChild(el);
+    announce(msg, urgent);
     setTimeout(function () {
       el.remove();
       toastCount = Math.max(0, toastCount - 1);
@@ -402,37 +487,114 @@
   var pinMode = false;
   var highlight = null;
 
-  function enterPinMode() {
-    pinMode = true;
-    fab.classList.add("pinmode");
-    fab.textContent = "✕ Cancel pin";
-    highlight = document.createElement("div");
-    highlight.className = "hl";
-    ui.appendChild(highlight);
-    document.addEventListener("mousemove", onMove, true);
-    document.addEventListener("click", onPick, true);
-  }
-  function exitPinMode() {
-    pinMode = false;
-    fab.classList.remove("pinmode");
-    fab.textContent = FAB_LABEL;
-    if (highlight) highlight.remove();
-    highlight = null;
-    document.removeEventListener("mousemove", onMove, true);
-    document.removeEventListener("click", onPick, true);
-  }
-  function onMove(ev) {
-    if (ev.composedPath().indexOf(host) !== -1) {
-      highlight.style.display = "none";
-      return;
+  // Keyboard pin mode. Pointer picking alone made the product's core gesture —
+  // choosing what to pin — unavailable without a mouse, and most page content
+  // worth pinning (a heading, a broken paragraph, an image) is not focusable,
+  // so native Tab could never reach it either. This walks the page's own
+  // elements with the arrow keys instead.
+  var kbIndex = -1;
+  var kbTargets = [];
+
+  function collectTargets() {
+    var out = [];
+    var all = document.body.querySelectorAll(
+      "p,h1,h2,h3,h4,li,td,th,img,button,a,input,textarea,select,label,figure,section,article,blockquote,pre,code,span",
+    );
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (host.contains(el)) continue;
+      var r = el.getBoundingClientRect();
+      // On-screen and big enough to be a meaningful anchor.
+      if (r.width < 12 || r.height < 8) continue;
+      if (r.bottom < 0 || r.top > window.innerHeight) continue;
+      out.push(el);
     }
-    var el = ev.target;
+    return out;
+  }
+
+  function paint(el) {
+    if (!highlight || !el) return;
     var r = el.getBoundingClientRect();
     highlight.style.display = "block";
     highlight.style.left = r.left - 2 + "px";
     highlight.style.top = r.top - 2 + "px";
     highlight.style.width = r.width + "px";
     highlight.style.height = r.height + "px";
+  }
+
+  function describe(el) {
+    var text = (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 60);
+    return el.tagName.toLowerCase() + (text ? ": " + text : "");
+  }
+
+  function onKey(ev) {
+    if (!pinMode) return;
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      exitPinMode();
+      announce("Pin mode cancelled");
+      return;
+    }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowLeft") {
+      ev.preventDefault();
+      if (!kbTargets.length) kbTargets = collectTargets();
+      if (!kbTargets.length) return;
+      var step = ev.key === "ArrowDown" || ev.key === "ArrowRight" ? 1 : -1;
+      kbIndex = (kbIndex + step + kbTargets.length) % kbTargets.length;
+      var el = kbTargets[kbIndex];
+      el.scrollIntoView({ block: "nearest", behavior: "auto" });
+      paint(el);
+      announce(describe(el) + ". Press Enter to pin.");
+      return;
+    }
+    if (ev.key === "Enter" && kbIndex >= 0 && kbTargets[kbIndex]) {
+      ev.preventDefault();
+      var target = kbTargets[kbIndex];
+      var rect = target.getBoundingClientRect();
+      exitPinMode();
+      openForm(target, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+  }
+
+  function enterPinMode() {
+    pinMode = true;
+    fab.classList.add("pinmode");
+    fab.textContent = "✕ Cancel pin";
+    // The accessible name has to track the visible one, or a screen reader
+    // announces "Loopback — pin feedback…" on a button that now says Cancel.
+    fab.setAttribute("aria-label", "Cancel pin mode");
+    kbIndex = -1;
+    kbTargets = [];
+    highlight = document.createElement("div");
+    highlight.className = "hl";
+    ui.appendChild(highlight);
+    document.addEventListener("mousemove", onMove, true);
+    document.addEventListener("click", onPick, true);
+    document.addEventListener("keydown", onKey, true);
+    fab.focus();
+    announce(
+      "Pin mode on. Use the arrow keys to move through the page, Enter to pin the highlighted element, Escape to cancel.",
+    );
+  }
+  function exitPinMode() {
+    pinMode = false;
+    fab.classList.remove("pinmode");
+    fab.textContent = FAB_LABEL;
+    fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
+    if (highlight) highlight.remove();
+    highlight = null;
+    kbTargets = [];
+    kbIndex = -1;
+    document.removeEventListener("mousemove", onMove, true);
+    document.removeEventListener("click", onPick, true);
+    document.removeEventListener("keydown", onKey, true);
+  }
+  function onMove(ev) {
+    if (ev.composedPath().indexOf(host) !== -1) {
+      highlight.style.display = "none";
+      return;
+    }
+    paint(ev.target);
   }
   function onPick(ev) {
     if (ev.composedPath().indexOf(host) !== -1) return;
@@ -454,13 +616,35 @@
 
     var form = document.createElement("div");
     form.className = "form";
+    // A modal-ish surface needs a role and a name, or it is an anonymous div to
+    // assistive tech and Escape does nothing.
+    form.setAttribute("role", "dialog");
+    form.setAttribute("aria-modal", "true");
+    form.setAttribute("aria-label", "File Loopback feedback");
     form.style.left = Math.max(8, Math.min(x, window.innerWidth - 320)) + "px";
     form.style.top =
       Math.max(8, Math.min(y + 10, window.innerHeight - Math.min(window.innerHeight * 0.72, 460) - 20)) + "px";
+
+    // Remember who opened it so focus can go back there on close.
+    // root.activeElement, NOT document.activeElement: when focus is inside a
+    // shadow root the document only reports the HOST, and calling focus() on a
+    // host with no tabindex silently drops focus to <body> — which is exactly
+    // the bug this restore exists to prevent.
+    var opener = root.activeElement || document.activeElement;
+
     // Built with DOM calls rather than innerHTML: the context keys and request
     // URLs below come from the host page, and must never be parsed as markup.
+    //
+    // ids are generated per-form. A shadow root is its own id scope, so these
+    // cannot collide with the host page no matter what it contains — which is
+    // what makes htmlFor safe to use in an injected widget.
+    var uid = 0;
     function field(labelText, node) {
-      form.appendChild(mk("label", null, labelText));
+      var id = "lb-f" + ++uid;
+      node.id = id;
+      var label = mk("label", null, labelText);
+      label.htmlFor = id;
+      form.appendChild(label);
       form.appendChild(node);
       return node;
     }
@@ -480,22 +664,30 @@
     field("What happened", mk("textarea", "f-got"));
     field("What you expected", mk("textarea", "f-want"));
 
+    // Same id/htmlFor pairing inside the two-up row.
+    function cell(labelText, node) {
+      var wrap = mk("div");
+      var id = "lb-f" + ++uid;
+      node.id = id;
+      var label = mk("label", null, labelText);
+      label.htmlFor = id;
+      wrap.appendChild(label);
+      wrap.appendChild(node);
+      return wrap;
+    }
     var row = mk("div", "row");
-    var typeCell = mk("div");
-    typeCell.appendChild(mk("label", null, "Type"));
-    typeCell.appendChild(select("f-type", ["ui", "backend", "usage", "ux"], guessType));
-    var sevCell = mk("div");
-    sevCell.appendChild(mk("label", null, "Severity"));
-    sevCell.appendChild(select("f-sev", ["p0", "p1", "p2", "p3"], "p2"));
-    row.appendChild(typeCell);
-    row.appendChild(sevCell);
+    row.appendChild(cell("Type", select("f-type", ["ui", "backend", "usage", "ux"], guessType)));
+    row.appendChild(cell("Severity", select("f-sev", ["p0", "p1", "p2", "p3"], "p2")));
     form.appendChild(row);
 
+    // These are status notes, not labels — they label no control. They were
+    // <label> elements only to inherit the 11px type rule, which now lives on
+    // .note instead.
     if (ctx) {
       form.appendChild(
         mk(
-          "label",
-          "note-ctx",
+          "div",
+          "note note-ctx",
           "✓ AI/automation context attached (" + Object.keys(ctx).slice(0, 3).join(", ") + ")",
         ),
       );
@@ -504,8 +696,8 @@
       var last = failedNet[failedNet.length - 1];
       form.appendChild(
         mk(
-          "label",
-          "note-net",
+          "div",
+          "note note-net",
           "✓ " + failedNet.length + " failed request(s) attached (latest: " +
             (last.status || "ERR") + " " + last.url.split("?")[0].slice(-40) + ")",
         ),
@@ -518,15 +710,39 @@
     form.appendChild(actions);
     ui.appendChild(form);
     form.querySelector(".f-title").focus();
-    form.querySelector(".cancel").addEventListener("click", function () {
+
+    function closeForm() {
       form.remove();
-    });
+      document.removeEventListener("keydown", onFormKey, true);
+      // Send focus back where it came from; otherwise it falls to <body> and a
+      // keyboard user restarts from the top of the page. Only trust the opener
+      // if it is still in the shadow tree — otherwise fall back to the FAB,
+      // which is always present.
+      var back = opener && root.contains(opener) ? opener : fab;
+      if (back && typeof back.focus === "function") back.focus();
+    }
+    function onFormKey(ev) {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeForm();
+      announce("Feedback form closed");
+    }
+    document.addEventListener("keydown", onFormKey, true);
+
+    form.querySelector(".cancel").addEventListener("click", closeForm);
     form.querySelector(".send").addEventListener("click", function () {
-      var title = form.querySelector(".f-title").value.trim();
+      var titleEl = form.querySelector(".f-title");
+      var title = titleEl.value.trim();
       if (title.length < 3) {
-        toast("Add a short title first");
+        // Was a bare toast: silent to assistive tech, no invalid state, no focus
+        // move. A screen-reader user got no feedback and no way to find the field.
+        titleEl.setAttribute("aria-invalid", "true");
+        titleEl.focus();
+        toast("Add a short title first", true);
         return;
       }
+      titleEl.removeAttribute("aria-invalid");
       var got = form.querySelector(".f-got").value.trim();
       var want = form.querySelector(".f-want").value.trim();
       var body =
@@ -574,7 +790,7 @@
       var keepDraft = function (message) {
         sendBtn.disabled = false;
         sendBtn.textContent = "Send";
-        toast(message);
+        toast(message, true);
       };
       sendBtn.disabled = true;
       sendBtn.textContent = "Sending…";
@@ -591,7 +807,7 @@
         })
         .then(function (j) {
           if (j && j.ok) {
-            form.remove();
+            closeForm();
             toast("Filed " + j.id + " — an agent will pick it up");
             refreshPins();
             return;
@@ -622,7 +838,7 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.7.1",
+    version: "0.9.0",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
@@ -685,46 +901,98 @@
       .catch(function () {});
   }
 
+  // Pin elements are pooled by feedback id and reused across renders.
+  var pinPool = {};
+
+  function pinSummary(item) {
+    return (
+      "#" + item.id + " · " + item.status +
+      (item.assignee_agent ? " · " + item.assignee_agent : "") +
+      (item.links && item.links.pr_url ? " · PR linked" : "")
+    );
+  }
+
+  /**
+   * Runs on every scroll frame of the HOST page, so it is written to touch
+   * layout exactly twice: one read pass, then one write pass.
+   *
+   * The previous version interleaved `querySelector` + `getBoundingClientRect`
+   * with `appendChild` inside a single loop. Each append invalidates layout, so
+   * the next rect read forced a synchronous reflow — up to 50 per frame — and
+   * every pin element was destroyed and rebuilt each time. A guest widget has
+   * no business degrading its host's scroll performance.
+   */
   function renderPins(items) {
-    pinEls.forEach(function (p) {
-      p.remove();
-    });
-    pinEls = [];
-    items.forEach(function (item, idx) {
-      if (!item.dom_selector) return;
+    // ---- READ PASS: resolve targets and measure. No DOM mutation here. ----
+    var measured = [];
+    var seen = {};
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item.dom_selector) continue;
       var target = null;
       try {
         target = document.querySelector(item.dom_selector);
       } catch (e) {}
-      if (!target) return;
+      if (!target) continue;
       var r = target.getBoundingClientRect();
-      var pin = document.createElement("div");
-      pin.className = "pin b-" + item.status;
-      pin.textContent = String(idx + 1);
-      pin.title = "[" + item.status + "] " + item.title;
+      measured.push({ item: item, left: r.right - 10, top: r.top - 10, index: measured.length + 1 });
+      seen[item.id] = true;
+    }
+
+    // ---- WRITE PASS: create, update, position. No layout reads below. ----
+    for (var id in pinPool) {
+      if (!seen[id]) {
+        pinPool[id].remove();
+        delete pinPool[id];
+      }
+    }
+    pinEls = [];
+    for (var m = 0; m < measured.length; m++) {
+      var rec = measured[m];
+      var it = rec.item;
+      var pin = pinPool[it.id];
+      if (!pin) {
+        // A real <button>: pins were unfocusable divs, so the only way to read
+        // a pin's status was to hover it with a mouse.
+        pin = document.createElement("button");
+        pin.type = "button";
+        pin.className = "pin";
+        pin.addEventListener("click", makePinHandler(it.id));
+        pinPool[it.id] = pin;
+        ui.appendChild(pin);
+      }
+      pin.dataset.id = it.id;
+      pin.textContent = String(rec.index);
+      var cls = "pin b-" + it.status;
+      // Pulse once per announcement — scroll/resize re-renders must not replay it.
+      if (changedIds[it.id]) cls += " pulse";
+      if (pin.className !== cls) pin.className = cls;
+      var name = "Feedback " + rec.index + ": " + it.status + " — " + it.title;
+      if (pin.getAttribute("aria-label") !== name) pin.setAttribute("aria-label", name);
       // Viewport coordinates with position:fixed, NOT document coordinates.
       // An absolutely-positioned pin resolves against the nearest positioned
       // ancestor, so on a centred layout (body{position:relative;margin:0 auto})
       // every pin landed offset by the auto margin — measured 300px off on a
       // 680px centred page. Fixed + viewport coords is immune to the host's
       // layout; scroll/resize already re-render (rAF-throttled).
-      pin.style.left = r.right - 10 + "px";
-      pin.style.top = r.top - 10 + "px";
-      // Colour comes from the .b-<status> class, not an inline style, so the
-      // status palette lives in one place and follows light/dark with it.
-      if (changedIds[item.id]) pin.classList.add("pulse");
-      pin.addEventListener("click", function () {
-        toast(
-          "#" + item.id + " · " + item.status +
-            (item.assignee_agent ? " · " + item.assignee_agent : "") +
-            (item.links && item.links.pr_url ? " · PR linked" : "")
-        );
-      });
-      ui.appendChild(pin);
+      var l = rec.left + "px";
+      var t = rec.top + "px";
+      if (pin.style.left !== l) pin.style.left = l;
+      if (pin.style.top !== t) pin.style.top = t;
       pinEls.push(pin);
-    });
-    // Pulse once per announcement — scroll/resize re-renders must not replay it.
+    }
     changedIds = {};
+  }
+
+  // Bound once per pin element, so the handler survives reuse across renders
+  // and always reports the item currently under that pin.
+  function makePinHandler(id) {
+    return function () {
+      var current = null;
+      var list = window.__loopback.pins || [];
+      for (var i = 0; i < list.length; i++) if (list[i].id === id) current = list[i];
+      if (current) toast(pinSummary(current));
+    };
   }
 
   function renderPinList(items) {

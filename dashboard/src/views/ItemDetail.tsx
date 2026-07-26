@@ -4,6 +4,7 @@ import {
   bytes,
   statusClass,
   severityClass,
+  severityWeight,
   SEVERITIES,
   STATUSES,
   TYPES,
@@ -24,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getAuthor, setAuthor, hasAuthor } from "@/lib/identity";
+import { age } from "@/views/QueueList";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,7 +53,12 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, File, Paperclip, Pencil, Trash2 } from "lucide-react";
 
-const AUTHOR = "dj";
+/**
+ * Was the constant "dj". Every human write in every install carried one
+ * person's name; see lib/identity.ts. Read at call time, not module load, so a
+ * name set mid-session applies immediately.
+ */
+const author = (): string => getAuthor();
 
 /**
  * Loopback's label recipe, in one place.
@@ -154,6 +162,10 @@ export function ItemDetail({
   /** Every write funnels through here: one in-flight guard, one error path. */
   const run = async (fn: () => Promise<void>): Promise<void> => {
     if (busy) return;
+    // Disabling the control that is currently focused sends focus to <body>,
+    // which drops a keyboard user out of the form mid-task. Remember where they
+    // were and put them back once the control is enabled again.
+    const focused = document.activeElement as HTMLElement | null;
     setBusy(true);
     try {
       await fn();
@@ -161,12 +173,17 @@ export function ItemDetail({
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+      requestAnimationFrame(() => {
+        if (focused && document.contains(focused) && !(focused as HTMLButtonElement).disabled) {
+          focused.focus();
+        }
+      });
     }
   };
 
   const save = (): Promise<void> =>
     run(async () => {
-      await api.update(id, { ...draft, author: AUTHOR });
+      await api.update(id, { ...draft, author: author() });
       toast.success("Saved — the change is on the audit trail");
       setEditing(false);
       setDraft({});
@@ -182,7 +199,7 @@ export function ItemDetail({
       await api.attach(id, file, {
         intent,
         target: intent === "asset" ? target.trim() : undefined,
-        author: AUTHOR,
+        author: author(),
       });
       toast.success(
         intent === "asset"
@@ -197,7 +214,7 @@ export function ItemDetail({
   return (
     <div className="grid gap-4">
       <header className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/queue")}>
+        <Button variant="ghost" size="sm" className="h-11" onClick={() => navigate("/queue")}>
           <ArrowLeft className="size-4" /> Queue
         </Button>
         <Badge className={statusClass[item.status]}>
@@ -224,6 +241,11 @@ export function ItemDetail({
           {themeToggle}
         </div>
       </header>
+
+      {/* The h1 lives outside the edit branch. It used to be inside the "not
+          editing" side, so entering edit mode left the page with no heading at
+          all — heading navigation just stopped working mid-task. */}
+      <h1 className="text-xl font-semibold tracking-tight">{item.title}</h1>
 
       {editing ? (
         <Card className="grid gap-3 p-4">
@@ -281,16 +303,13 @@ export function ItemDetail({
           </p>
         </Card>
       ) : (
-        <>
-          <h1 className="text-xl font-semibold tracking-tight">{item.title}</h1>
-          <code className="font-mono text-xs text-muted-foreground">{item.id}</code>
-        </>
+        <code className="font-mono text-xs break-all text-muted-foreground">{item.id}</code>
       )}
 
       <Card className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3 p-4">
         <Section label="Project">{item.project}</Section>
         <Section label="Severity / type">
-          <span className={`font-mono text-xs font-semibold ${severityClass[item.severity]}`}>
+          <span className={`font-mono text-xs ${severityClass[item.severity]} ${severityWeight[item.severity]}`}>
             {item.severity}
           </span>{" "}
           <span className="text-sm text-muted-foreground">{item.type}</span>
@@ -302,11 +321,23 @@ export function ItemDetail({
           <span className="text-sm">{item.assignee_agent ?? "unclaimed"}</span>
         </Section>
         <Section label="Route">
-          <code className="font-mono text-xs">{item.route ?? "—"}</code>
+          <code className="font-mono text-xs break-all">{item.route ?? "—"}</code>
+        </Section>
+        {/* created_at was on the type and rendered nowhere. Age is the first
+            thing anyone wants from a triage queue. */}
+        <Section label="Age">
+          <time dateTime={item.created_at} className="text-sm" title={item.created_at}>
+            {age(item.created_at)}
+          </time>
         </Section>
         <Section label="Updated">
           <span className="text-sm text-muted-foreground">{item.updated_at}</span>
         </Section>
+        {item.resolution && (
+          <Section label="Resolution">
+            <span className="text-sm">{item.resolution}</span>
+          </Section>
+        )}
       </Card>
 
       <div className="grid gap-3.5">
@@ -326,7 +357,7 @@ export function ItemDetail({
           <Section label="Failed requests (captured at report time)">
             {failed.map((f, n) => (
               <div key={n} className="mb-2">
-                <code className="font-mono text-xs">{f.status} {f.url}</code>
+                <code className="font-mono text-xs break-all">{f.status} {f.url}</code>
                 {f.body && <Pre>{f.body}</Pre>}
               </div>
             ))}
@@ -360,7 +391,7 @@ export function ItemDetail({
                         {String(v)}
                       </a>
                     ) : (
-                      <code className="font-mono text-xs">{String(v)}</code>
+                      <code className="font-mono text-xs break-all">{String(v)}</code>
                     )}
                   </div>
                 ))}
@@ -370,6 +401,42 @@ export function ItemDetail({
         {item.dom_selector && (
           <Section label="Anchor">
             <code className="font-mono text-xs break-all">{item.dom_selector}</code>
+          </Section>
+        )}
+        {/* `url` and `network` were typed on Item and rendered nowhere, so the
+            agent's view of an item was strictly richer than the human's. */}
+        {item.url && (
+          <Section label="Reported from">
+            <a
+              className="text-sm break-all underline"
+              href={item.url}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {item.url}
+            </a>
+          </Section>
+        )}
+        {item.network.length > 0 && (
+          <Section label={`Network at report time (${item.network.length})`}>
+            <div className="grid gap-1">
+              {item.network.slice(-8).map((n, i) => (
+                <div key={i} className="flex flex-wrap items-baseline gap-2 font-mono text-xs">
+                  <span
+                    className={
+                      (n.status ?? 0) >= 400 || n.status === 0
+                        ? "text-lb-p0 font-semibold"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {n.status ?? "—"}
+                  </span>
+                  <span className="text-muted-foreground">{n.method ?? "GET"}</span>
+                  <span className="break-all">{n.url}</span>
+                  {n.ms !== undefined && <span className="text-muted-foreground">{n.ms}ms</span>}
+                </div>
+              ))}
+            </div>
           </Section>
         )}
       </div>
@@ -456,7 +523,7 @@ export function ItemDetail({
             aria-label="Target path in the repo"
             placeholder={
               intent === "asset"
-                ? "Target path in the repo, e.g. public/logos/adpushup.svg"
+                ? "Target path in the repo, e.g. public/logos/acme.svg"
                 : "Context for the fix — no target path needed"
             }
             value={target}
@@ -507,6 +574,47 @@ export function ItemDetail({
         </Section>
       )}
 
+      {/* Ask once, before the first write. The trail is only worth trusting if
+          it names whoever actually acted. */}
+      {!hasAuthor() && (
+        <Alert>
+          <AlertTitle>Who is writing to this trail?</AlertTitle>
+          <AlertDescription>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Label htmlFor="lb-author" className="sr-only">
+                Your name
+              </Label>
+              <Input
+                id="lb-author"
+                className="h-11 w-48"
+                placeholder="Your name or handle"
+                defaultValue=""
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  setAuthor((e.target as HTMLInputElement).value);
+                  reload();
+                }}
+              />
+              <Button
+                size="sm"
+                className="h-11"
+                onClick={() => {
+                  const el = document.getElementById("lb-author") as HTMLInputElement | null;
+                  if (el) setAuthor(el.value);
+                  reload();
+                }}
+              >
+                Save
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Stored in this browser only. Until then, writes are recorded as{" "}
+                <code className="font-mono">unknown-human</code>.
+              </span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="grid gap-2 p-4">
           <Label htmlFor="lb-comment" className={LABEL}>
@@ -524,7 +632,7 @@ export function ItemDetail({
             disabled={busy || !comment.trim()}
             onClick={() =>
               run(async () => {
-                await api.comment(id, comment, AUTHOR);
+                await api.comment(id, comment, author());
                 setComment("");
                 toast.success("Comment added");
                 reload();
@@ -553,7 +661,7 @@ export function ItemDetail({
             value={item.status}
             onValueChange={(v) =>
               run(async () => {
-                await api.setStatus(id, v as Status, note, AUTHOR);
+                await api.setStatus(id, v as Status, note, author());
                 setNote("");
                 toast.success(`Status is now ${v}`);
                 reload();

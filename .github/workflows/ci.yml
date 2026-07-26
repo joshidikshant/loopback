@@ -22,6 +22,9 @@ jobs:
       - run: node scripts/registry-gate.mjs
       # Catches a committed dashboard build that has drifted from its source.
       - run: node scripts/dashboard-gate.mjs
+      # The widget inlines its own copy of the tokens (it ships as one file and
+      # cannot @import them), so it is the one surface that can drift silently.
+      - run: node scripts/widget-token-gate.mjs
       # Design anti-patterns in the shipped UI. Runs after dashboard-gate
       # because it scans the built output, which that gate proves is current.
       - run: node scripts/impeccable-gate.mjs
