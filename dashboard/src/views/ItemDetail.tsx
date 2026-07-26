@@ -73,15 +73,32 @@ const LABEL = "text-[11px] font-medium text-muted-foreground";
 
 /**
  * A read-only display group — NOT a form field. These label values, not
- * controls, so this stays a <span>: a <label> here would point at nothing.
+ * controls, so the label is never a <label>: it would point at nothing.
+ *
+ * `region` promotes the group to a real <section> with an <h2>. The page used
+ * to carry exactly one heading and one landmark, with a dozen visually-labelled
+ * groups rendered as bare spans — so heading and region navigation stopped at
+ * the title and a screen-reader user had no way to move between the report, the
+ * console, the failed requests and the trail. Compact metadata (Project, Route,
+ * Age) stays a plain div: promoting six one-line facts to headings is noise.
  */
 function Section({
   label,
   children,
+  region,
 }: {
   label: string;
   children: React.ReactNode;
+  region?: boolean;
 }): React.JSX.Element {
+  if (region) {
+    return (
+      <section className="grid min-w-0 gap-1.5" aria-label={label}>
+        <h2 className={LABEL}>{label}</h2>
+        <div>{children}</div>
+      </section>
+    );
+  }
   return (
     <div className="grid min-w-0 gap-1.5">
       <span className={LABEL}>{label}</span>
@@ -353,19 +370,19 @@ export function ItemDetail({
 
       <div className="grid gap-3.5">
         {item.body && !editing && (
-          <Section label="Report">
+          <Section region label="Report">
             <div className="whitespace-pre-wrap break-all text-sm">{item.body}</div>
           </Section>
         )}
         {item.repro_steps.length > 0 && (
-          <Section label="Repro steps">
+          <Section region label="Repro steps">
             <ol className="list-decimal pl-5 text-sm">
               {item.repro_steps.map((s, n) => <li key={n}>{s}</li>)}
             </ol>
           </Section>
         )}
         {failed && failed.length > 0 && (
-          <Section label="Failed requests (captured at report time)">
+          <Section region label="Failed requests (captured at report time)">
             {failed.map((f, n) => (
               <div key={n} className="mb-2">
                 <code className="font-mono text-xs break-all">{f.status} {f.url}</code>
@@ -375,17 +392,17 @@ export function ItemDetail({
           </Section>
         )}
         {context && (
-          <Section label="Run context (AI / automation)">
+          <Section region label="Run context (AI / automation)">
             <Pre>{JSON.stringify(context, null, 2)}</Pre>
           </Section>
         )}
         {item.console.length > 0 && (
-          <Section label={`Console (${item.console.length})`}>
+          <Section region label={`Console (${item.console.length})`}>
             <Pre>{item.console.join("\n")}</Pre>
           </Section>
         )}
         {Object.values(item.links).some(Boolean) && (
-          <Section label="Linked change">
+          <Section region label="Linked change">
             <div className="text-sm">
               {Object.entries(item.links)
                 .filter(([, v]) => v)
@@ -410,14 +427,14 @@ export function ItemDetail({
           </Section>
         )}
         {item.dom_selector && (
-          <Section label="Anchor">
+          <Section region label="Anchor">
             <code className="font-mono text-xs break-all">{item.dom_selector}</code>
           </Section>
         )}
         {/* `url` and `network` were typed on Item and rendered nowhere, so the
             agent's view of an item was strictly richer than the human's. */}
         {item.url && (
-          <Section label="Reported from">
+          <Section region label="Reported from">
             <a
               className="inline-block min-h-6 text-sm break-all underline"
               href={item.url}
@@ -429,7 +446,7 @@ export function ItemDetail({
           </Section>
         )}
         {item.network.length > 0 && (
-          <Section label={`Network at report time (${item.network.length})`}>
+          <Section region label={`Network at report time (${item.network.length})`}>
             <div className="grid gap-1">
               {item.network.slice(-8).map((n, i) => (
                 <div key={i} className="flex flex-wrap items-baseline gap-2 font-mono text-xs">
@@ -472,7 +489,12 @@ export function ItemDetail({
             </AttachmentMedia>
             <AttachmentContent>
               <AttachmentTitle>
-                <a className="underline" href={a.url} target="_blank" rel="noreferrer noopener">
+                <a
+                  className="inline-block min-h-6 break-all underline"
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
                   {a.name}
                 </a>
               </AttachmentTitle>
@@ -568,7 +590,7 @@ export function ItemDetail({
       </Card>
 
       {item.comments && item.comments.length > 0 && (
-        <Section label={`Trail (${item.comments.length})`}>
+        <Section region label={`Trail (${item.comments.length})`}>
           <div className="grid gap-2">
             {/* A divided list, not a stack of accent-bordered cards. The trail is
                 a log; separators between entries read as one, side-tabs read as
@@ -597,7 +619,7 @@ export function ItemDetail({
               </Label>
               <Input
                 id="lb-author"
-                className="h-11 w-48"
+                className="h-11 w-full max-w-48 min-w-0"
                 placeholder="Your name or handle"
                 defaultValue=""
                 onKeyDown={(e) => {

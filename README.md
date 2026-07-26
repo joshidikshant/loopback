@@ -245,8 +245,11 @@ your app's CSS or framework.
 - **SPA-aware**: client-side route changes (`pushState`/`popstate`) refresh
   pins immediately — no stale pins from the previous route.
 - **Live status pins**: hydrate from `GET /feedback` on load and every 10s —
-  amber `open/triaged`, blue `in_progress`, green `fixed/verified`, gray
-  `wontfix`; click one for id/status/assignee/PR.
+  amber `open`, deeper amber `triaged`, blue `in_progress`, **pale** green
+  `fixed` (an agent says it is done), **full** green `verified` (confirmed
+  against the running app), gray `wontfix`. The two greens are deliberately
+  different: the pin earning its full colour only at `verified` is the whole
+  point, so `fixed` reads as provisional. Click a pin for id/status/assignee/PR.
 - **The loop closes visibly**: when a status changes under an open page, the
   widget announces it — toast ("… open → verified by claude-code · PR
   linked"), pulsing pin, and a 🔔 tab-title flash if you're on another tab
@@ -255,7 +258,7 @@ your app's CSS or framework.
   version }` (adapted from DOM-Review's `__domReviewAPI`, MIT) — used by the
   E2E suite, usable by any agent driving a browser.
 
-## The MCP bus — 9 tools
+## The MCP bus — 10 tools
 
 | Tool | What it does |
 |---|---|
@@ -315,17 +318,26 @@ npm run init-gate        # init renderings ×3 agents, byte-level idempotence, m
 npm run registry-gate    # the published shadcn registry still resolves and installs
 npm run dashboard-gate   # the committed dashboard build matches dashboard/src
 npm run impeccable-gate  # design anti-patterns in the shipped UI (canary-verified)
+npm run widget-token-gate # the widget's inlined tokens still equal design/tokens.css
+npm run a11y-gate        # contrast, target size, names, landmarks, motion — measured in a browser
 ```
 
 CI runs all of them on every push (`LOOPBACK_E2E_CHROMIUM` overrides the
 browser binary if needed).
 
-Two of these are built to resist passing for the wrong reason, because both
-underlying tools fail open: a stale dashboard build serves happily with no
-error anywhere, and `impeccable detect` exits 0 when it scans nothing. So
+Several of these are built to resist passing for the wrong reason, because the
+underlying tools fail open: a stale dashboard build serves happily with no error
+anywhere, and `impeccable detect` exits 0 when it scans nothing. So
 `dashboard-gate` rebuilds and compares rather than trusting mtimes, and
 `impeccable-gate` scans a canary fixture that is *required* to trip before it
 will believe a clean result.
+
+`a11y-gate` and `widget-token-gate` exist because the two things they check —
+accessibility and cross-surface token parity — regressed silently more than
+once. The widget inlines its own copy of the tokens (it ships as one file and
+cannot `@import` them) and had already drifted; `components.css` hardcoded a
+near-white pin colour that broke the moment a status token went pale. Every gate
+here has had both of its failure paths verified by deliberately breaking them.
 
 ## Companions (borrow, don't rebuild)
 

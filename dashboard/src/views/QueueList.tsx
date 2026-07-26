@@ -65,7 +65,26 @@ function readSearch(): string {
   return new URLSearchParams(window.location.search).get("q") ?? "";
 }
 
+let urlTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Debounced and guarded. Called from an effect on every keystroke, this used to
+ * hit history.replaceState directly — Safari throws SecurityError past roughly
+ * 100 calls in 30 seconds, and the throw would surface inside a passive effect
+ * with no error boundary above it, taking the page down over a typed search.
+ */
 function writeFilters(next: Filters, search: string): void {
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(() => {
+    try {
+      applyUrl(next, search);
+    } catch {
+      /* URL state is a convenience; never let it break the view */
+    }
+  }, 150);
+}
+
+function applyUrl(next: Filters, search: string): void {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(next)) if (v) q.set(k, v);
   // The caption promises "this view is linkable". It was not: the search term
@@ -263,7 +282,7 @@ export function QueueList({
             <button
               key={i.id}
               onClick={() => navigate(`/queue/${encodeURIComponent(i.id)}`)}
-              className="grid gap-1.5 rounded-lg border p-3 text-left hover:bg-muted/50"
+              className="grid min-w-0 gap-1.5 rounded-lg border p-3 text-left hover:bg-muted/50 [&>*]:min-w-0"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className={statusClass[i.status]}>{i.status}</Badge>
@@ -281,7 +300,7 @@ export function QueueList({
                   </span>
                 )}
               </div>
-              <div className="font-medium break-words">{i.title}</div>
+              <div className="font-medium break-all">{i.title}</div>
               <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                 <span>{i.project}</span>
                 <span aria-hidden>·</span>
@@ -431,7 +450,7 @@ export function QueueList({
                     {i.type}
                   </Button>
                 </TableCell>
-                <TableCell className="min-w-[16rem] font-medium break-words whitespace-normal">
+                <TableCell className="min-w-[16rem] font-medium break-all whitespace-normal">
                   {i.title}
                   {(i.attachments?.length ?? 0) > 0 && (
                     <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -468,7 +487,7 @@ export function QueueList({
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="inline-block min-h-6 underline"
+                      className="inline-flex min-h-6 min-w-6 items-center justify-center underline"
                     >
                       PR
                     </a>

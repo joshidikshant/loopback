@@ -370,7 +370,7 @@
     // a precise point on someone else's page, so it cannot grow to 44 without
     // lying about what it marks; the panel's pin list is the large-target route
     // to the same actions.
-    ".pin{position:fixed;z-index:2147482999;width:24px;height:24px;padding:0;border:none;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
+    ".pin{position:fixed;left:0;top:0;will-change:transform;z-index:2147482999;width:24px;height:24px;padding:0;border:none;border-radius:999px 999px 999px 4px;background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
     ".pin:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
     ".pin.b-open{background:var(--lb-open);color:var(--lb-open-fg)}" +
     ".pin.b-triaged{background:var(--lb-triaged);color:var(--lb-triaged-fg)}" +
@@ -1011,10 +1011,11 @@
       // every pin landed offset by the auto margin — measured 300px off on a
       // 680px centred page. Fixed + viewport coords is immune to the host's
       // layout; scroll/resize already re-render (rAF-throttled).
-      var l = rec.left + "px";
-      var t = rec.top + "px";
-      if (pin.style.left !== l) pin.style.left = l;
-      if (pin.style.top !== t) pin.style.top = t;
+      // transform, not left/top: position writes force layout + paint on every
+      // host scroll frame, while a transform stays on the compositor. The pin
+      // is anchored at 0,0 and translated into place.
+      var t = "translate3d(" + Math.round(rec.left) + "px," + Math.round(rec.top) + "px,0)";
+      if (pin.style.transform !== t) pin.style.transform = t;
       pinEls.push(pin);
     }
     changedIds = {};

@@ -154,14 +154,22 @@ for (const [theme, source] of [
 // which was survivable while all six status colours were dark and broke the
 // moment --lb-fixed became a pale green. Nothing was checking this file.
 const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-8");
-const hardcoded = [
-  ...componentsCss.matchAll(/^\s*(color|background(?:-color)?)\s*:\s*(oklch\([^)]*\)|#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))/gm),
-];
+// Any declaration, not just color/background: a literal hiding in a border,
+// outline, box-shadow or color-mix() is the same drift.
+const COLOUR_LITERAL = /(oklch\(\s*[\d.]|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
+const hardcoded = [];
+componentsCss.split("\n").forEach((line, n) => {
+  const decl = line.match(/^\s*([\w-]+)\s*:\s*(.+?);/);
+  if (!decl) return;
+  // `rgb(0 0 0 / 0.18)` inside a shadow TOKEN is fine — tokens.css owns those.
+  if (!COLOUR_LITERAL.test(decl[2])) return;
+  hardcoded.push([null, decl[1], decl[2].trim(), n + 1]);
+});
 if (hardcoded.length === 0) {
   pass("design/components.css uses tokens throughout — no literal colours");
 } else {
-  for (const [, prop, value] of hardcoded) {
-    fail(`design/components.css hardcodes ${prop}: ${value} — use the paired token`);
+  for (const [, prop, value, line] of hardcoded) {
+    fail(`design/components.css:${line} hardcodes ${prop}: ${value} — use a token`);
   }
 }
 

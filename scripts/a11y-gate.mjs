@@ -78,9 +78,21 @@ const MEASURE = `(() => {
       if (c[3] > 0.95) return c; n = n.parentElement; }
     return rgb(getComputedStyle(document.body).backgroundColor); };
 
+  // Shadow roots are opaque to querySelectorAll, so the widget — an entire
+  // surface — was invisible to every scan here. Walk into open roots.
+  const deepAll = (sel) => {
+    const out = [];
+    const walk = (rootNode) => {
+      out.push(...rootNode.querySelectorAll(sel));
+      rootNode.querySelectorAll('*').forEach((el) => { if (el.shadowRoot) walk(el.shadowRoot); });
+    };
+    walk(document);
+    return out;
+  };
+
   const scanContrast = () => {
     const out = [], seen = new Set();
-    document.querySelectorAll('span,button,a,td,th,p,h1,h2,code,label,time,div').forEach((el) => {
+    deepAll('span,button,a,td,th,p,h1,h2,code,label,time,div').forEach((el) => {
       const t = (el.textContent || '').trim();
       if (!t || el.children.length > 0) return;
       const cs = getComputedStyle(el);
@@ -98,7 +110,7 @@ const MEASURE = `(() => {
 
   const scanTargets = () => {
     const out = [], seen = new Set();
-    document.querySelectorAll('button,a,input,select,textarea,[role=button]').forEach((el) => {
+    deepAll('button,a,input,select,textarea,[role=button]').forEach((el) => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
       const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0,24);
@@ -212,6 +224,16 @@ async function main() {
         author: "a11y-gate",
       }),
     });
+    // Exercise the QUEUE with the long title too. The previous version PATCHed
+    // a long title and then only loaded the detail route, so the phone card —
+    // which was genuinely overflowing — was never measured.
+    await page.goto(`${LB}/queue`);
+    await page.waitForSelector("tbody tr, .grid button");
+    await page.evaluate(KILL_MOTION);
+    const queueLong = await page.evaluate(MEASURE);
+    check(!queueLong.horizontalOverflow,
+      `queue at 375px with a 120-char unbroken title: no page overflow${queueLong.horizontalOverflow ? ` — ${JSON.stringify(queueLong.horizontalOverflow)}` : ""}`);
+
     await page.goto(`${LB}/queue/${detail}`);
     await page.waitForSelector("h1");
     await page.evaluate(KILL_MOTION);
@@ -267,20 +289,20 @@ async function main() {
     await rm.emulateMedia({ reducedMotion: "reduce" });
     await rm.goto(`${LB}/queue`);
     await rm.waitForSelector("tbody tr");
+    // Assert the EFFECT, not the presence of a rule. Counting rules let
+    // sonner's injected stylesheet satisfy this while the repo's own rule could
+    // have been deleted with the gate still green.
     const motion = await rm.evaluate(() => {
-      let guarded = 0;
-      for (const sheet of document.styleSheets) {
-        try {
-          for (const r of sheet.cssRules) {
-            if (r.conditionText && r.conditionText.includes("prefers-reduced-motion")) guarded++;
-          }
-        } catch {
-          /* cross-origin sheet */
-        }
-      }
-      return { guarded };
+      const probe = document.createElement("div");
+      probe.className = "animate-pulse";
+      document.body.appendChild(probe);
+      const dur = getComputedStyle(probe).animationDuration;
+      probe.remove();
+      return { pulseDuration: dur };
     });
-    check(motion.guarded > 0, `dashboard: ships a prefers-reduced-motion rule (${motion.guarded})`);
+    const seconds = parseFloat(motion.pulseDuration) || 0;
+    check(seconds > 0 && seconds < 0.05,
+      `dashboard: reduced motion actually shortens an animation (animate-pulse = ${motion.pulseDuration})`);
   } finally {
     await browser.close();
   }
