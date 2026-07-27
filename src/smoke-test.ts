@@ -79,7 +79,35 @@ async function main(): Promise<void> {
     SERVER_VERSION === pkg.version,
     `SERVER_VERSION (${SERVER_VERSION}) matches package.json (${pkg.version})`,
   );
-  console.log(`✅ version parity: ${SERVER_VERSION}`);
+
+  // The MCP Registry hard-fails publication on any of these drifting: it reads
+  // `mcpName` from the PUBLISHED npm metadata and requires it to equal
+  // server.json's `name`, and resolves the package by the exact version. npm
+  // versions are immutable, so a mismatch is not a re-run — it is a wasted
+  // version number. Four version fields and two name fields, all hand-typed.
+  const srv = JSON.parse(readFileSync(new URL("../server.json", import.meta.url), "utf-8")) as {
+    name: string;
+    version: string;
+    packages: { identifier: string; version: string }[];
+  };
+  const pkgJson = pkg as unknown as { mcpName?: string; name: string };
+  assert(
+    pkgJson.mcpName === srv.name,
+    `package.json mcpName (${pkgJson.mcpName}) equals server.json name (${srv.name}) — the registry compares these exactly`,
+  );
+  assert(
+    /^io\.github\.[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(srv.name),
+    `server.json name is a GitHub-auth reverse-DNS name (${srv.name})`,
+  );
+  assert(
+    srv.version === pkg.version && srv.packages.every((x) => x.version === pkg.version),
+    `server.json versions track package.json (${srv.version} / ${srv.packages.map((x) => x.version).join(",")} vs ${pkg.version})`,
+  );
+  assert(
+    srv.packages.every((x) => x.identifier === pkgJson.name),
+    `server.json package identifier is the published npm name (${srv.packages.map((x) => x.identifier).join(",")})`,
+  );
+  console.log(`✅ version + registry-identity parity: ${SERVER_VERSION} / ${srv.name}`);
 
   // 0. Tool inventory
   const tools = await mcp.listTools();

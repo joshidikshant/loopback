@@ -164,6 +164,14 @@ const CASES = [
       ),
   },
   {
+    gate: "smoke (registry identity)",
+    cmd: ["npm", ["run", "-s", "smoke"]],
+    build: BUILD,
+    guards: "package.json mcpName matching server.json name",
+    apply: () =>
+      mutate("server.json", (s) => s.replace("io.github.joshidikshant/loopback", "io.github.someoneelse/loopback")),
+  },
+  {
     gate: "init-gate (canonical drift)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     guards: "the canonical skill template matching the repo's installed copy",

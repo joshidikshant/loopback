@@ -332,6 +332,34 @@ is asserted in `scripts/e2e.mjs` in both directions, and
 This is a shared secret on a trusted network, not a substitute for real auth.
 Before exposing Loopback beyond a LAN, put it behind a reverse proxy.
 
+## Publishing to the MCP Registry
+
+Loopback carries the identity the [official MCP Registry](https://github.com/modelcontextprotocol/registry)
+uses to prove package ownership:
+
+| Where | Field | Value |
+|---|---|---|
+| `package.json` | `mcpName` | `io.github.joshidikshant/loopback` |
+| `server.json` | `name` | `io.github.joshidikshant/loopback` |
+
+The registry fetches the **published** npm version metadata and requires
+`mcpName` to equal `server.json`'s `name` exactly; GitHub-based authentication
+additionally requires the `io.github.<username>/` prefix. `server.json` stays in
+the repo and out of the npm tarball — the package only needs to carry `mcpName`.
+
+Because npm versions are immutable, a mismatch costs a version number rather
+than a retry. `npm run smoke` therefore asserts all six coupled fields (three
+versions, the name pair, the npm identifier) and `npm run canary` proves that
+assertion fails when they drift.
+
+To release and submit:
+
+```bash
+npm publish --otp=<code>          # 2FA code from your authenticator
+mcp-publisher login github        # opens a browser
+mcp-publisher publish             # reads server.json
+```
+
 ## Tests
 
 ```bash

@@ -5,6 +5,30 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-07-27
+
+### Added — MCP Registry identity (`mcpName` + `server.json`)
+The official MCP Registry proves package ownership by fetching the **published**
+npm version metadata and requiring its `mcpName` to equal `server.json`'s
+`name`. 0.9.0 shipped without the field, and npm versions are immutable — so
+this is a new version rather than a fix. Registry submission (and everything
+that ingests from it downstream) was blocked on it.
+
+- `package.json` declares `"mcpName": "io.github.joshidikshant/loopback"`.
+  GitHub-based authentication requires the `io.github.<username>/` prefix.
+- `server.json` is the registry manifest (schema `2025-12-11`), kept in the
+  repo and deliberately **out** of the npm tarball — the registry reads it from
+  the source, the package only needs to carry `mcpName`.
+
+### Added — gated, because the registry hard-fails on drift
+Publication now depends on four hand-typed version fields and two name fields
+agreeing (`package.json` version + `mcpName`, `SERVER_VERSION`, `server.json`
+version + `packages[].version` + `packages[].identifier`). A mismatch is not a
+retry — an immutable version number is spent. The smoke test asserts all of it,
+including that the name matches the GitHub-auth pattern, and three drifts are
+canaried: a foreign `mcpName`, a stale package version, and a wrong npm
+identifier. The sweep is 16 checks.
+
 ## [0.9.0] — 2026-07-27 — published to npm
 
 First published release (`npm i loopback-mcp-server`). The tarball is proven,
