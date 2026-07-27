@@ -6,7 +6,13 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      // tabIndex/role/label: this box scrolls, and a scrollable region with no
+      // focusable descendant cannot be reached by keyboard at all — between
+      // 1024 and ~1129px the last columns were unreachable without a pointer.
+      tabIndex={0}
+      role="region"
+      aria-label="Feedback queue, scrollable"
+      className="relative w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
     >
       <table
         data-slot="table"

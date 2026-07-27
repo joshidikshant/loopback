@@ -586,6 +586,7 @@
   // elements with the arrow keys instead.
   var kbIndex = -1;
   var kbTargets = [];
+  var kbCollectedAt = 0;
 
   function collectTargets() {
     var out = [];
@@ -644,7 +645,14 @@
       // whatever was on screen at the first keypress, so scrolling never
       // revealed anything new and only the first viewport was ever pinnable.
       var previous = kbTargets[kbIndex];
-      kbTargets = collectTargets();
+      // Recollect at most every 250ms. Held-down arrow keys repeat far faster
+      // than the page can change, and a full re-measure per press cost 17.5ms
+      // on a 30k-element host — a dropped frame each time.
+      var now = Date.now();
+      if (!kbTargets.length || now - kbCollectedAt > 250) {
+        kbTargets = collectTargets();
+        kbCollectedAt = now;
+      }
       if (!kbTargets.length) return;
       // Keep the cursor on the same element across recollection where we can.
       if (previous) {
@@ -677,6 +685,7 @@
     fab.setAttribute("aria-label", "Cancel pin mode");
     kbIndex = -1;
     kbTargets = [];
+    kbCollectedAt = 0;
     highlight = document.createElement("div");
     highlight.className = "hl";
     ui.appendChild(highlight);

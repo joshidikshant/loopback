@@ -53,7 +53,8 @@
       "lb-shadow-md": "0 4px 14px rgb(0 0 0 / 0.22)",
       "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.2)",
       "lb-font": "system-ui, -apple-system, \"Segoe UI\", sans-serif",
-      "lb-font-mono": "ui-monospace, SFMono-Regular, Menlo, monospace"
+      "lb-font-mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+      "color-scheme": "light"
     },
     "dark": {
       "background": "oklch(0.145 0 0)",
@@ -94,7 +95,8 @@
       "lb-highlight": "oklch(0.707 0.165 254.624)",
       "lb-shadow-sm": "0 2px 8px rgb(0 0 0 / 0.5)",
       "lb-shadow-md": "0 4px 14px rgb(0 0 0 / 0.55)",
-      "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.6)"
+      "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.6)",
+      "color-scheme": "dark"
     }
   },
   "docs": "Pairs with the loopback-widget item. Use the tokens directly (background: var(--lb-verified)) or through Tailwind arbitrary values (bg-[var(--lb-verified)]). Status names match the Loopback MCP bus exactly, so a badge coloured by var(--lb-{status}) always agrees with the queue.",

@@ -393,9 +393,15 @@ export class LoopbackStore {
       if (String(prev ?? "") === next) continue;
       cols.push(`${field} = ?`);
       params.push(next);
+      // The old value, not a summary of it. The dashboard tells the human
+      // "every edit is recorded on the trail with its old value — nothing is
+      // rewritten silently", and the MCP tool repeats it to agents. For `body`
+      // this recorded a CHARACTER COUNT, so the original report — the thing the
+      // reporter actually wrote — was gone and unrecoverable. Bodies are capped
+      // at 5000 chars by the submit schema, so keeping them is bounded.
       changes.push(
         field === "body"
-          ? `body rewritten (${String(prev ?? "").length} → ${next.length} chars)`
+          ? `body rewritten. Previous value:\n\n${String(prev ?? "(empty)")}`
           : `${field}: ${JSON.stringify(prev ?? null)} → ${JSON.stringify(next)}`,
       );
     }

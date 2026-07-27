@@ -1,7 +1,7 @@
 /**
  * Accessibility gate: measures the running UI in a real browser.
  *
- * The other seven gates check structure, freshness and design anti-patterns.
+ * The other five gates check structure, freshness and design anti-patterns.
  * None of them asserted a single accessibility property — so every a11y fix in
  * the repo was defended by nothing but a one-time manual check, which is
  * exactly how these regress. This is the durable version of that check.

@@ -96,6 +96,20 @@ function applyUrl(next: Filters, search: string): void {
   window.history.replaceState({}, "", qs ? `/queue?${qs}` : "/queue");
 }
 
+/** One layout at a time. Rendering both and hiding one doubled the node count. */
+function useIsWide(): boolean {
+  const [wide, setWide] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = (): void => setWide(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
 export function QueueList({
   navigate,
   themeToggle,
@@ -150,6 +164,7 @@ export function QueueList({
     setFilters((f) => ({ ...f, [key]: f[key] === value ? undefined : value }));
 
   const active = Object.entries(filters).filter(([, v]) => v) as [string, string][];
+  const isWide = useIsWide();
 
   return (
     <>
@@ -275,7 +290,8 @@ export function QueueList({
           it was visible and the title column started past the right edge, so a
           phone showed ids and nothing readable. A table forced through a narrow
           viewport is the wrong shape; below `sm` this is a list. */}
-      <div className="mt-4 grid gap-2 lg:hidden">
+      {!isWide && (
+      <div className="mt-4 grid gap-2">
         {loading &&
           Array.from({ length: 4 }, (_, n) => (
             <Skeleton key={`msk-${n}`} className="h-24 w-full rounded-lg" />
@@ -333,8 +349,11 @@ export function QueueList({
         )}
       </div>
 
-      {/* ---- Tablet and up: the full table ---- */}
-      <div className="mt-4 hidden rounded-lg border lg:block">
+      )}
+
+      {/* ---- Wide: the full table ---- */}
+      {isWide && (
+      <div className="mt-4 rounded-lg border">
         <Table>
           {/* TableCaption is the table's own accessible description, and shadcn
               renders it below the table — exactly where the loose <p> used to
@@ -423,6 +442,8 @@ export function QueueList({
                   <Button
                     variant="link"
                     className="h-auto min-h-6 min-w-6 p-0 text-sm"
+                    aria-pressed={filters.project === i.project}
+                    aria-label={`Filter by project ${i.project}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("project", i.project);
@@ -435,6 +456,8 @@ export function QueueList({
                   <Button
                     variant="link"
                     className={`h-auto min-h-6 min-w-6 p-0 font-mono text-xs ${severityClass[i.severity]} ${severityWeight[i.severity]}`}
+                    aria-pressed={filters.severity === i.severity}
+                    aria-label={`Filter by severity ${i.severity}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("severity", i.severity);
@@ -445,6 +468,8 @@ export function QueueList({
                   <Button
                     variant="link"
                     className="h-auto min-h-6 min-w-6 p-0 text-xs text-muted-foreground"
+                    aria-pressed={filters.type === i.type}
+                    aria-label={`Filter by type ${i.type}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle("type", i.type);
@@ -469,6 +494,8 @@ export function QueueList({
                 <TableCell>
                   <Badge asChild className={`${statusClass[i.status]} min-h-6 cursor-pointer`}>
                     <button
+                      aria-pressed={filters.status === i.status}
+                      aria-label={`Filter by status ${i.status}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         toggle("status", i.status);
@@ -507,6 +534,7 @@ export function QueueList({
           </TableBody>
         </Table>
       </div>
+      )}
 
     </>
   );

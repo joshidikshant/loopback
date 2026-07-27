@@ -428,6 +428,12 @@ export function createHttpApp(
    * Hand-rolled on node:zlib rather than pulling in `compression`: the hub has
    * three runtime dependencies and this is fifteen lines.
    */
+  // Compressed once at startup, not per request. The sibling /widget.js path
+  // was already fixed this way while this one re-read and re-gzipped a 411KB
+  // bundle on every hit — 5.5ms of blocking TTFB — under a comment asserting
+  // these files are small. Vite hashes content into the filenames, so a cached
+  // entry can never go stale within a process.
+  const dashCache = new Map();
   app.use("/dashboard", (req, res, next) => {
     const accepts = String(req.headers["accept-encoding"] ?? "");
     if (!/\bgzip\b/.test(accepts) || !/\.(js|css|html|json|svg|map)$/.test(req.path)) {
@@ -444,11 +450,14 @@ export function createHttpApp(
       res.status(403).type("text/plain").send("Forbidden");
       return;
     }
-    let body: Buffer;
-    try {
-      body = gzipSync(readFileSync(file));
-    } catch {
-      return next(); // missing file, or unreadable — let express.static answer
+    let body = dashCache.get(file);
+    if (!body) {
+      try {
+        body = gzipSync(readFileSync(file));
+      } catch {
+        return next(); // missing file, or unreadable — let express.static answer
+      }
+      dashCache.set(file, body);
     }
     res.setHeader("Content-Encoding", "gzip");
     res.setHeader("Vary", "Accept-Encoding");

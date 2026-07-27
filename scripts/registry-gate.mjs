@@ -125,8 +125,11 @@ if (theme) {
     if (start === -1) return null;
     const body = css.slice(start, css.indexOf("\n}", start));
     const out = {};
-    for (const [, name, value] of body.matchAll(/(--[\w-]+):\s*([^;]+);/g)) {
-      out[name] = squash(value);
+    // `--*` custom properties AND color-scheme, which tokens.css declares as a
+    // plain property. Matching only custom properties made the parity check
+    // report a published color-scheme as "absent from tokens.css".
+    for (const [, name, value] of body.matchAll(/(--[\w-]+|color-scheme):\s*([^;]+);/g)) {
+      out[name.startsWith("--") ? name : `--${name}`] = squash(value);
     }
     return out;
   };
@@ -149,6 +152,16 @@ if (theme) {
   }
   // Guard the guard: a parse that compares nothing must not report a match.
   assert(compared > 0, `published theme actually declares tokens to compare (${compared})`);
+
+  // color-scheme is not a colour variable, so iterating cssVars keys could never
+  // notice it was absent: an adopter got our palette with the browser still
+  // drawing light-mode scrollbars, form chrome and caret in dark.
+  for (const themeName of ["light", "dark"]) {
+    assert(
+      theme.cssVars?.[themeName]?.["color-scheme"] === themeName,
+      `published theme declares color-scheme: ${themeName}`,
+    );
+  }
 
   // A published recipe must be able to RENDER from the published theme. The
   // theme shipped only the --lb-* status tokens while loopback-components

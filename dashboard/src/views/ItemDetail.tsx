@@ -704,6 +704,14 @@ export function ItemDetail({
                   const el = document.getElementById("lb-author") as HTMLInputElement | null;
                   if (el) setAuthor(el.value);
                   reload();
+                  // This alert unmounts itself once a name exists, so nothing
+                  // restores focus for it — and it is the first write every new
+                  // user performs.
+                  requestAnimationFrame(() => {
+                    const c = document.querySelector('[data-lb-region="comment"]') as HTMLElement | null;
+                    c?.setAttribute("tabindex", "-1");
+                    c?.focus({ preventScroll: true });
+                  });
                 }}
               >
                 Save
@@ -717,7 +725,10 @@ export function ItemDetail({
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* min-w-0 on the row AND on the cards: the page wrapper's
+          [&>*]:min-w-0 only reaches direct children, and these are
+          grandchildren. */}
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         <Card data-lb-region="comment" className="grid gap-2 p-4">
           <Label htmlFor="lb-comment" className={LABEL}>
             Add a comment
