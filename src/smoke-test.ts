@@ -174,6 +174,40 @@ async function main(): Promise<void> {
   );
   console.log("✅ resolve(verified) + full get with comments/links intact");
 
+  // 5b. itemMarkdown vs structuredContent parity.
+  //
+  // Two representations of the same item: structuredContent IS the item, while
+  // the markdown is hand-written and is the DEFAULT an agent reads. Nothing
+  // asserted they carry the same facts, so a field could be added to the store
+  // and silently never reach the surface agents actually consume — which is
+  // exactly what happened to attachments.
+  const md = await call("loopback_get_feedback", { id: bugId });
+  const carriesData = (v: unknown): boolean =>
+    v !== null && v !== undefined && v !== "" &&
+    !(Array.isArray(v) && v.length === 0) &&
+    !(typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0);
+  // Fields whose ABSENCE from the prose is deliberate: timestamps the markdown
+  // renders as relative age, and machine plumbing an agent reads structurally.
+  const NOT_IN_PROSE = new Set(["updated_at", "created_at", "extra", "dom_selector"]);
+  // Compare VALUES, not key names. A first attempt searched for the key
+  // ("title", "body") and reported four false positives — the markdown of
+  // course renders the title's text, not the word "title".
+  const leaves = (v: unknown): string[] => {
+    if (v === null || v === undefined) return [];
+    if (Array.isArray(v)) return v.flatMap(leaves);
+    if (typeof v === "object") return Object.values(v as object).flatMap(leaves);
+    return [String(v)];
+  };
+  const missing = Object.entries(fullItem as Record<string, unknown>)
+    .filter(([k, v]) => carriesData(v) && !NOT_IN_PROSE.has(k))
+    .filter(([, v]) => leaves(v).some((leaf) => leaf.length > 2 && !md.text.includes(leaf)))
+    .map(([k]) => k);
+  assert(
+    missing.length === 0,
+    `itemMarkdown drops populated field(s) structuredContent carries: ${missing.join(", ")}`,
+  );
+  console.log(`✅ itemMarkdown carries every populated field structuredContent does`);
+
   // 6. Stats + not-found error path
   const stats = await call("loopback_get_stats", {});
   assert(stats.structured.total === 2, "stats sees both projects");

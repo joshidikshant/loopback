@@ -44,3 +44,7 @@ jobs:
       # in a real browser. Nothing else in CI asserts an a11y property, so every
       # fix in that class was previously defended by a one-time manual check.
       - run: node scripts/a11y-gate.mjs
+      # Proves every gate above can actually FAIL. A green suite is not
+      # evidence on its own -- nine times across twenty audit passes a gate
+      # reported green on something it could not see.
+      - run: node scripts/canary-all.mjs

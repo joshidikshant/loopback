@@ -135,5 +135,18 @@ Six gates plus `smoke` and `e2e` — eight CI verification steps.
 | `smoke` | MCP contract; **`itemMarkdown` dropping a field `structuredContent` carries** | ✅ |
 | `e2e` | the full human→bus→agent→human loop; **assets reaching the agent-facing rendering** | ✅ |
 
-Every one has had both failure paths verified by deliberately breaking it. That
-discipline is the thing worth keeping from this exercise.
+Every one has had both failure paths verified by deliberately breaking it —
+and that verification is no longer a hand-checked claim in this table. It runs:
+
+```bash
+npm run canary
+```
+
+`scripts/canary-all.mjs` applies one surgical mutation per gate to the thing
+that gate protects, runs the gate, and REQUIRES a non-zero exit. A gate that
+still passes with its subject broken is decorative, and the sweep fails. It
+caught a real regression on its first run: a `git checkout` used to strip debug
+instrumentation had silently reverted the smoke parity assertion, which had
+already been committed with a message claiming it existed.
+
+That discipline is the thing worth keeping from this exercise.

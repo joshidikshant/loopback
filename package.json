@@ -1,7 +1,7 @@
 {
   "name": "loopback-mcp-server",
   "version": "0.8.0",
-  "description": "Loopback — a project-tagged feedback bus for coding agents (Claude Code, Codex, Gemini CLI) over MCP. Capture UI/backend/usage/UX feedback once; let any agent claim, fix, and write the change back.",
+  "description": "Loopback \u2014 a project-tagged feedback bus for coding agents (Claude Code, Codex, Gemini CLI) over MCP. Capture UI/backend/usage/UX feedback once; let any agent claim, fix, and write the change back.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -23,7 +23,8 @@
     "dashboard-gate": "node scripts/dashboard-gate.mjs",
     "impeccable-gate": "node scripts/impeccable-gate.mjs",
     "widget-token-gate": "node scripts/widget-token-gate.mjs",
-    "a11y-gate": "node scripts/a11y-gate.mjs"
+    "a11y-gate": "node scripts/a11y-gate.mjs",
+    "canary": "node scripts/canary-all.mjs"
   },
   "repository": {
     "type": "git",
