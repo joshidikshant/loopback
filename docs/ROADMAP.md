@@ -12,6 +12,23 @@ between each. Everything here is **open**. Shipped work lives in the CHANGELOG.
 | 3 | **13/20** | The gate I added was decorative in three places |
 | 4 | 14/20 | Two more gates false-greening; a thesis bypass |
 | 5 | 14/20 | The a11y gate was non-hermetic; three stacked measurement bugs |
+| 6 | 14/20 | **A path traversal and a dead cache, both introduced in pass 5's fixes** |
+
+**Stop here.** Pass 6 is the argument. Its two most serious findings were code
+written one turn earlier *to fix pass 5's findings*:
+
+- the gzip middleware added for a performance finding shipped a **path
+  traversal** (`/dashboard/../../package.json` → 200, the repo's own file)
+- the negative cache added for the same finding was **dead code** — the guard
+  compared against the tick it had just been set to, so it could never fire
+
+And the regression test first written for the traversal was itself decorative:
+`fetch()` normalises `../` client-side, so it never sent the attack and passed
+against a knowingly vulnerable server.
+
+At six passes the remediation loop has become a comparable source of defects to
+the one it is closing. The productive move is to work the list below
+deliberately, not to chase the next point.
 
 **The score is not climbing, and that is the honest result.** Passes 3–5 spent
 most of their findings auditing the *verification* rather than the code — and
