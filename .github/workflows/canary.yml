@@ -1,0 +1,45 @@
+# The canary sweep verifies the GATES, not the product: one surgical mutation
+# per protected subject, and the gate must FAIL. Gates change rarely, and the
+# sweep re-runs e2e/a11y many times (~10 min), so it does not belong on every
+# push — it runs when anything it mutates or asserts changes, weekly as a
+# backstop, and on demand before a release.
+name: Canary sweep
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "src/**"
+      - "widget/**"
+      - "design/**"
+      - "dashboard/src/**"
+      - "skills/**"
+      - "integrations/**"
+      - ".github/workflows/canary.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "src/**"
+      - "widget/**"
+      - "design/**"
+      - "dashboard/src/**"
+      - "skills/**"
+      - "integrations/**"
+      - ".github/workflows/canary.yml"
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC — drift backstop for quiet weeks
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/canary-all.mjs

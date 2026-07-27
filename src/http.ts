@@ -238,9 +238,50 @@ export function createHttpApp(
    * Everything else — the dashboard, full reads, every write, and `/mcp`, which
    * exposes all ten tools — requires the token.
    */
+  /**
+   * Backstop for the open intake.
+   *
+   * /ingest deliberately takes no token — but on a LAN bind that means
+   * unauthenticated 2MB writes straight into the DB, unlimited. 60/min per IP
+   * is far above any human filing feedback and far below disk-filling. Only
+   * active when a token is (i.e. the bind is non-loopback): on 127.0.0.1 the
+   * OS already decides who can talk to the port, and the e2e hammers ingest.
+   */
+  const INGEST_WINDOW_MS = 60_000;
+  const INGEST_MAX_PER_WINDOW = 60;
+  const ingestHits = new Map<string, number[]>();
+  const ingestLimited = (req: express.Request): boolean => {
+    const now = Date.now();
+    const ip = req.socket.remoteAddress ?? "?";
+    const hits = (ingestHits.get(ip) ?? []).filter((t) => now - t < INGEST_WINDOW_MS);
+    if (hits.length >= INGEST_MAX_PER_WINDOW) {
+      ingestHits.set(ip, hits);
+      return true;
+    }
+    hits.push(now);
+    ingestHits.set(ip, hits);
+    // The map itself must not become the resource leak it exists to prevent.
+    if (ingestHits.size > 1000) {
+      for (const [k, v] of ingestHits) {
+        if (v.every((t) => now - t >= INGEST_WINDOW_MS)) ingestHits.delete(k);
+      }
+    }
+    return false;
+  };
+
   const requireAuth = (req: express.Request, res: express.Response): boolean => {
     if (!options.token) return true;
-    if (req.method === "POST" && req.path === "/ingest") return true;
+    if (req.method === "POST" && req.path === "/ingest") {
+      if (ingestLimited(req)) {
+        res.status(429).json({
+          ok: false,
+          error: "Rate limited: too many reports from this address in the last minute.",
+          hint: "The intake takes 60 reports/minute per IP on a shared-network bind. Wait and retry.",
+        });
+        return false;
+      }
+      return true;
+    }
     if (req.path === "/widget.js" || req.path === "/health") return true;
     if (req.method === "GET" && req.path === "/feedback" && req.query.view === "pins") return true;
 

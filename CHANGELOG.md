@@ -5,6 +5,43 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-07-27
+
+First published release (`npm i loopback-mcp-server`). The tarball is proven,
+not assumed: CI-adjacent checks install the packed artifact into a clean
+directory and run `init`, the hub, the dashboard, the widget and the intake
+from it — which is how a missing `integrations/` and a stale canonical skill
+template were caught before anyone else could.
+
+### Added — the intake has a backstop
+On a token-protected (non-loopback) bind, `POST /ingest` rate-limits at 60
+reports/minute per IP with a 429. Loopback binds are untouched — the OS
+already decides who can reach the port.
+
+### Added — the repo eats its own init output
+`init-gate` now renders `init` for this repo's own slug and requires the
+result to match the repo's installed `.claude/skills/loopback/SKILL.md` and
+`AGENTS.md` queue block byte for byte. The canonical template had drifted from
+the installed copy for a full session — adopters would have onboarded with a
+playbook missing the attachments contract — and 25 assertions stayed green,
+because none compared the two.
+
+### Changed — the canary sweep moved to its own workflow
+15 mutation checks re-running e2e/a11y (~10 min) verify the gates, and gates
+change rarely: the sweep now triggers on changes to what it mutates or
+asserts, weekly as a drift backstop, and on demand — not on every push.
+
+### The audit arc (passes 1–21, for the record)
+11/20 → 20/20 across 21 Impeccable audit passes. The dominant defect the
+whole way was never broken UI — it was verification reporting green on
+something it could not see, nine separate gates' worth (a detector that exits
+0 scanning nothing; a theme check that could not tell `:root` from `.dark`; a
+contrast dedupe keyed on transparent backgrounds; a reduced-motion probe
+measuring its own injected stylesheet; an unguarded `@theme` hop…). Each was
+fixed, then mutation-tested in both directions, and the discipline was made
+executable as `npm run canary` — which caught a real regression on its first
+run.
+
 ### Added — the widget captures how, not just what (widget v0.10.0)
 - **Repro steps.** A labelled "one per line" textarea in the capture form;
   leading `1.` / `2)` numbering is stripped because every downstream renderer

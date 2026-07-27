@@ -829,6 +829,27 @@ async function main() {
     (handoff.headers.get("set-cookie") ?? "").includes("HttpOnly"),
     "the token is handed off into an HttpOnly cookie",
   );
+  // The open intake has a backstop: a burst from one address 429s past 60/min.
+  // The seeded report above already used one slot.
+  let burstAccepted = 0;
+  let burstLimited = 0;
+  for (let i = 0; i < 70; i++) {
+    const r = await fetch(`${AB}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project: "auth", type: "ui", severity: "p3",
+        title: `burst ${i}`, body: "b", source: "widget", reporter: "human",
+      }),
+    });
+    if (r.status === 201) burstAccepted++;
+    else if (r.status === 429) burstLimited++;
+  }
+  assert(
+    burstLimited > 0 && burstAccepted <= 60,
+    `a LAN burst hits the intake rate limit (accepted ${burstAccepted}, limited ${burstLimited})`,
+  );
+
   rmSync(AUTH_DB, { force: true });
   rmSync(`${AUTH_DB}-wal`, { force: true });
   rmSync(`${AUTH_DB}-shm`, { force: true });

@@ -191,6 +191,38 @@ assert(
 
 for (const dir of [fresh, seeded, subset]) rmSync(dir, { recursive: true, force: true });
 
+
+// ---------- the repo eats its own init output ----------
+// The canonical template (skills/loopback/SKILL.md) is what every ADOPTER
+// gets; .claude/skills/loopback/SKILL.md is what THIS repo runs on. Pass 20's
+// doc fix landed only on the installed copy and nothing noticed — adopters
+// would have onboarded with the stale playbook. A fresh render for this
+// repo's own slug must equal the installed copy byte for byte, and the same
+// for the AGENTS.md queue block.
+{
+  const renderDir = mkdtempSync(join(tmpdir(), "loopback-selfrender-"));
+  execFileSync(process.execPath, [CLI, "init", "--project", "loopback", "--write"], {
+    cwd: renderDir,
+    stdio: "pipe",
+  });
+  const freshSkill = readFileSync(join(renderDir, ".claude", "skills", "loopback", "SKILL.md"), "utf-8");
+  const repoSkill = readFileSync(join(process.cwd(), ".claude", "skills", "loopback", "SKILL.md"), "utf-8");
+  assert(
+    freshSkill === repoSkill,
+    "repo's installed SKILL.md is exactly what init renders for slug 'loopback' (canonical and installed cannot drift)",
+  );
+  const block = (text) => {
+    const a = text.indexOf("<!-- loopback:queue:begin -->");
+    const b = text.indexOf("<!-- loopback:queue:end -->");
+    return a === -1 || b === -1 ? null : text.slice(a, b);
+  };
+  const freshAgents = block(readFileSync(join(renderDir, "AGENTS.md"), "utf-8"));
+  const repoAgents = block(readFileSync(join(process.cwd(), "AGENTS.md"), "utf-8"));
+  assert(freshAgents !== null && freshAgents === repoAgents,
+    "repo's AGENTS.md queue block is exactly what init renders (instructions-src cannot drift)");
+  rmSync(renderDir, { recursive: true, force: true });
+}
+
 if (failures) {
   console.error(`\nINIT GATE FAILED — ${failures} assertion(s)`);
   process.exit(1);

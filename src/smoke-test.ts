@@ -4,11 +4,13 @@
  * resolve → get → stats. Run: npm run build && npm run smoke
  */
 
+import { readFileSync } from "node:fs";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SERVER_VERSION } from "./server.js";
 
 const dbPath = join(tmpdir(), `loopback-smoke-${Date.now()}.db`);
 
@@ -66,6 +68,18 @@ async function main(): Promise<void> {
       ? (res.content[0].text as string)
       : "";
   };
+
+  // 0a. Version parity: SERVER_VERSION is a hand-written constant and
+  // package.json is what npm publishes. Nothing tied them together, and they
+  // were already divergent once (0.8.0 vs the shipped docs).
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8")) as {
+    version: string;
+  };
+  assert(
+    SERVER_VERSION === pkg.version,
+    `SERVER_VERSION (${SERVER_VERSION}) matches package.json (${pkg.version})`,
+  );
+  console.log(`✅ version parity: ${SERVER_VERSION}`);
 
   // 0. Tool inventory
   const tools = await mcp.listTools();

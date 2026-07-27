@@ -54,6 +54,7 @@ Work one item at a time, most severe first:
    reason when intentionally not fixing. Resolving flips the reporter's pin
    green — do not claim it until it is true.
 
+
 ## Attachments — reference vs asset
 
 Items can carry files, and the two intents mean different things to you:

@@ -164,15 +164,35 @@ const CASES = [
       ),
   },
   {
+    gate: "init-gate (canonical drift)",
+    cmd: ["node", ["scripts/init-gate.mjs"]],
+    guards: "the canonical skill template matching the repo's installed copy",
+    apply: () =>
+      mutate("skills/loopback/SKILL.md", (s) => s.replace("**Pass `agent`**", "Pass agent")),
+  },
+  {
+    gate: "e2e (ingest rate limit)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    build: BUILD,
+    guards: "the open intake refusing a burst on a LAN bind",
+    apply: () =>
+      mutate("src/http.ts", (s) =>
+        s.replace("const INGEST_MAX_PER_WINDOW = 60;", "const INGEST_MAX_PER_WINDOW = 6e9;"),
+      ),
+  },
+  {
     gate: "e2e (LAN auth)",
     cmd: ["npm", ["run", "-s", "e2e"]],
     build: BUILD,
     guards: "a LAN bind refusing unauthenticated reads",
     apply: () =>
+      // A universal allow at the top of the guard — "auth check disabled".
+      // (Re-anchored once already: the rate limiter rewrote the ingest branch
+      // this originally patched, and the no-op guard caught it.)
       mutate("src/http.ts", (s) =>
         s.replace(
-          '    if (req.method === "POST" && req.path === "/ingest") return true;',
-          '    if (req.path.length >= 0) return true;\n    if (req.method === "POST" && req.path === "/ingest") return true;',
+          "    if (!options.token) return true;",
+          "    if (!options.token) return true;\n    if (req.path.length >= 0) return true;",
         ),
       ),
   },

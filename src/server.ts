@@ -22,7 +22,7 @@ import {
 import { itemMarkdown, listMarkdown } from "./format.js";
 import type { FeedbackItem } from "./types.js";
 
-export const SERVER_VERSION = "0.8.0";
+export const SERVER_VERSION = "0.9.0";
 
 type ToolResult = {
   content: { type: "text"; text: string }[];
