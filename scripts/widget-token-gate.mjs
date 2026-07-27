@@ -188,6 +188,22 @@ for (const [theme, source] of [
   else pass(`${theme}: all ${checked} widget tokens match design/tokens.css`);
 }
 
+// Orphans: a token the WIDGET declares that the design system does not. The
+// parity walk goes design-system → widget, so a brand-new `--lb-canary:hotpink`
+// inlined into the widget was never compared against anything.
+{
+  const declared = { ...widgetVars("light"), ...widgetVars("dark") };
+  const mapped = new Set([...PAIRS, ...SHADOW_PAIRS, ...INVARIANT_PAIRS].map(([w]) => w));
+  const orphans = Object.keys(declared).filter((n) => !mapped.has(n));
+  if (orphans.length) {
+    for (const o of orphans) {
+      fail(`widget declares ${o}, which is in no parity pair — add it to the map or remove it`);
+    }
+  } else {
+    pass(`widget declares no unmapped tokens (${Object.keys(declared).length} checked)`);
+  }
+}
+
 // The six status colours must stay mutually distinct, in both themes. They were
 // not: open/triaged and fixed/verified were byte-identical pairs, which
 // collapsed a six-state model into four — and meant the pin went green when an
@@ -313,11 +329,18 @@ const PALETTE = "slate|gray|grey|zinc|neutral|stone|red|orange|amber|yellow|lime
 const CLASS_LITERAL = new RegExp(
   "\\b(?:bg|text|border|ring|fill|stroke|outline|shadow|from|via|to)-(?:white|black|(?:" +
     PALETTE +
-    ")-\\d{2,3})(?:/\\d{1,3})?\\b|\\b(?:bg|text|border|ring)-\\[#[0-9a-fA-F]{3,8}\\]",
+    ")-\\d{2,3})(?:/\\d{1,3})?\\b" +
+    // Arbitrary values in any colour utility, hex OR function form. This
+    // previously matched only bg-[#hex], so text-[oklch(...)] and
+    // bg-[rgb(...)] walked straight through.
+    "|\\b(?:bg|text|border|ring|fill|stroke|outline|shadow|from|via|to)-\\[(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\\()[^\\]]*\\]",
   "g",
 );
 const appFiles = readdirSync(join(ROOT, "dashboard", "src"), { recursive: true })
-  .filter((f) => typeof f === "string" && /\.tsx?$/.test(f))
+  // .css too. The filter was .tsx? only, so dashboard/src/index.css — the one
+  // hand-written stylesheet in the tree, and the file that maps every token —
+  // was outside the sweep that reported "22 files scanned".
+  .filter((f) => typeof f === "string" && /\.(tsx?|css)$/.test(f))
   // No blanket exclusion. This used to skip components/ui/ entirely on the
   // stated grounds that those files are "upstream verbatim" — false for
   // button.tsx and badge.tsx, both hand-patched off stock, and that is the pair
@@ -332,6 +355,17 @@ for (const rel of appFiles) {
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
   appScanned++;
+  if (rel.endsWith(".css")) {
+    // Declarations, like the components.css scan — a stylesheet has no classes
+    // to match. --lb-*/shadcn token DEFINITIONS are literals by necessity.
+    for (const [, prop, value] of text.matchAll(/([\w-]+)\s*:\s*([^;}{]+)/g)) {
+      if (/^--/.test(prop)) continue;
+      if (COLOUR_LITERAL.test(value)) {
+        fail(`${rel} hardcodes ${prop}: ${value.trim()} — use a token`);
+      }
+    }
+    continue;
+  }
   for (const hit of text.match(CLASS_LITERAL) ?? []) {
     fail(`${rel} uses the literal colour class \`${hit}\` — use a token utility`);
   }

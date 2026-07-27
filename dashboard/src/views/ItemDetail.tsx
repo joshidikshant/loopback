@@ -562,7 +562,7 @@ export function ItemDetail({
                 )}
               </AttachmentTitle>
               <AttachmentDescription
-                className="whitespace-normal"
+                className="whitespace-normal break-all"
                 title={a.target_path ?? undefined}
               >
                 {/* `asset` is the consequential one — it gets copied into the

@@ -58,6 +58,9 @@
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
   --font-mono: var(--lb-font-mono);
+  /* --lb-font was mapped nowhere, so the body fell back to Tailwind's stack
+     while the widget and the published recipe used the token. */
+  --font-sans: var(--lb-font);
 }
 
 @layer base {

@@ -295,7 +295,7 @@
     ".lb-root{display:contents;color-scheme:light;" +
     "--lb-bg:oklch(1 0 0);--lb-fg:oklch(0.145 0 0);" +
     "--lb-muted:oklch(0.97 0 0);--lb-muted-fg:oklch(0.556 0 0);" +
-    "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.922 0 0);" +
+    "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.65 0 0);" +
     "--lb-primary:oklch(0.205 0 0);--lb-primary-fg:oklch(0.985 0 0);" +
     "--lb-ring:oklch(0.45 0 0);--lb-radius:0.625rem;"+
     "--lb-pin-size:24px;--lb-pin-radius:999px 999px 999px 4px;" +
@@ -322,7 +322,7 @@
 "color-scheme:dark;" +
     "--lb-bg:oklch(0.205 0 0);--lb-fg:oklch(0.985 0 0);" +
     "--lb-muted:oklch(0.269 0 0);--lb-muted-fg:oklch(0.708 0 0);" +
-    "--lb-border:oklch(1 0 0/10%);--lb-input:oklch(1 0 0/15%);" +
+    "--lb-border:oklch(1 0 0/10%);--lb-input:oklch(0.55 0 0);" +
     "--lb-primary:oklch(0.922 0 0);--lb-primary-fg:oklch(0.205 0 0);" +
     "--lb-ring:oklch(0.85 0 0);" +
     "--lb-open:oklch(0.828 0.189 84.429);--lb-open-fg:oklch(0.205 0 0);" +
@@ -1123,7 +1123,10 @@
         pinPool[id].remove();
         delete pinPool[id];
         delete targetCache[id];
-        delete missUntil[id];
+        // NOT missUntil. `seen` only holds ids whose anchor RESOLVED, so a dead
+        // anchor is never in it — deleting its miss record here erased the very
+        // entry that stops the next frame re-querying, measured at 100 calls
+        // over 10 frames. The tick bump already expires it.
       }
     }
     pinEls = [];

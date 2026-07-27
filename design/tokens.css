@@ -43,7 +43,10 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /* SC 1.4.11: this is the ONLY thing identifying a form control — there is no
+     fill differentiation — so it needs 3:1 against the page, not the 1.26:1 the
+     stock shadcn value gives. */
+  --input: oklch(0.65 0 0);
   /* Focus indicator. shadcn paints its ring at 50% opacity, which cannot reach
      SC 1.4.11's 3:1 no matter what value goes here — pure black at 50% over
      white tops out at 3.95:1 and the stock 0.708 measured 1.54:1. The dashboard
@@ -135,7 +138,7 @@
      decoration. */
   --destructive-foreground: oklch(0.205 0 0);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --input: oklch(0.55 0 0);
   --ring: oklch(0.85 0 0);
 
   /* Status colors lift in dark mode so they stay legible on a dark surface.

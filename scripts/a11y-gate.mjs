@@ -144,13 +144,17 @@ const MEASURE = `(() => {
 
   const unnamedControls = () => {
     const out = [];
-    document.querySelectorAll('input,select,textarea').forEach((el) => {
+    // deepAll, not document.querySelectorAll — this was the one scanner that did
+    // not pierce the shadow root, so the widget's FAB, pins and pin-list rows
+    // were outside the "every control has an accessible name" assertion.
+    deepAll('input,select,textarea').forEach((el) => {
       if (el.type === 'hidden') return;
-      const byFor = el.id && document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+      const scope = el.getRootNode();
+      const byFor = el.id && scope.querySelector('label[for="' + CSS.escape(el.id) + '"]');
       const name = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || byFor;
       if (!name) out.push(el.className || el.tagName);
     });
-    document.querySelectorAll('button').forEach((el) => {
+    deepAll('button').forEach((el) => {
       const name = (el.getAttribute('aria-label') || el.textContent || '').trim();
       if (!name) out.push('button:' + (el.className || '').slice(0,30));
     });
@@ -280,6 +284,48 @@ async function main() {
     check(desktop.unnamed.length === 0,
       `queue: every control has an accessible name${desktop.unnamed.length ? ` — ${JSON.stringify(desktop.unnamed)}` : ""}`);
     check(desktop.hasMain, "queue: has a <main> landmark");
+
+    // SC 1.4.11 for the control BOUNDARY. Every input, textarea and select in
+    // the product is identified by its 1px border alone — no fill
+    // differentiation — and the only non-text contrast check here was the focus
+    // ring, so a 1.26:1 boundary cleared every assertion in this file.
+    const boundaries = await page.evaluate(() => {
+      const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const rgba = (c) => { ctx.fillStyle = "#f0f"; ctx.fillStyle = c;
+        ctx.clearRect(0,0,1,1); ctx.fillRect(0,0,1,1);
+        const d = ctx.getImageData(0,0,1,1).data; return [d[0],d[1],d[2],d[3]/255]; };
+      const over = (f,b) => [0,1,2].map(i => f[i]*f[3] + b[i]*(1-f[3])).concat(1);
+      const lum = ([r,g,b]) => { const f = (c) => { c/=255;
+        return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+        return 0.2126*f(r)+0.7152*f(g)+0.0722*f(b); };
+      const ratio = (a,b) => { const x=lum(a),y=lum(b); const [hi,lo]=x>y?[x,y]:[y,x];
+        return (hi+0.05)/(lo+0.05); };
+      const bgOf = (el) => { let n = el.parentElement;
+        while (n) { const c = rgba(getComputedStyle(n).backgroundColor);
+          if (c[3] > 0.95) return c; n = n.parentElement; }
+        return rgba(getComputedStyle(document.body).backgroundColor); };
+      const out = [];
+      const check = () => {
+        document.querySelectorAll("input, textarea, select, [role=combobox]").forEach((el) => {
+          const cs = getComputedStyle(el);
+          if (cs.display === "none" || !el.getBoundingClientRect().width) return;
+          const w = parseFloat(cs.borderTopWidth) || 0;
+          if (w === 0) return; // filled controls are identified another way
+          const r = ratio(over(rgba(cs.borderTopColor), bgOf(el)), bgOf(el));
+          if (r < 3) out.push({ el: el.tagName.toLowerCase(), ratio: +r.toFixed(2) });
+        });
+      };
+      const root = document.documentElement;
+      root.classList.remove("dark"); void document.body.offsetHeight; check();
+      root.classList.add("dark"); void document.body.offsetHeight; check();
+      root.classList.remove("dark");
+      return out;
+    });
+    check(boundaries.length === 0,
+      `form controls have a 3:1 boundary in both themes (SC 1.4.11)${
+        boundaries.length ? ` — ${JSON.stringify(boundaries.slice(0, 4))}` : ""
+      }`);
 
     // SC 1.4.11: the focus INDICATOR itself needs 3:1 against what it sits on.
     // Nothing checked it, and shadcn's stock ring is `ring-ring/50` — half
