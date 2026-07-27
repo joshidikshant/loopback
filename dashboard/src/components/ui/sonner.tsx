@@ -9,7 +9,7 @@ import * as React from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // Read the class the app actually toggles, not next-themes — there is no
+  // Read the class the app actually toggles. There is no
   // ThemeProvider in this tree, so useTheme() returned undefined and Sonner sat
   // permanently on theme="system", following prefers-color-scheme while the
   // rest of the app followed the .dark class.

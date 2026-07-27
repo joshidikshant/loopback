@@ -1,6 +1,6 @@
 # Roadmap — pending items
 
-Updated 2026-07-27, after five Impeccable `audit` passes with remediation
+Updated 2026-07-27, after twenty Impeccable `audit` passes with remediation
 between each. Everything here is **open**. Shipped work lives in the CHANGELOG.
 
 ## Where the score went
@@ -9,46 +9,56 @@ between each. Everything here is **open**. Shipped work lives in the CHANGELOG.
 |---|---|---|
 | 1 | 11/20 | Real defects, concentrated in the widget |
 | 2 | 14/20 | Remediation held; the new a11y gate was thin |
-| 3 | **13/20** | The gate I added was decorative in three places |
+| 3 | 13/20 | The gate I added was decorative in three places |
 | 4 | 14/20 | Two more gates false-greening; a thesis bypass |
 | 5 | 14/20 | The a11y gate was non-hermetic; three stacked measurement bugs |
-| 6 | 14/20 | **A path traversal and a dead cache, both introduced in pass 5's fixes** |
+| 6 | 14/20 | A path traversal and a dead cache, both introduced in pass 5's fixes |
+| 7–18 | 14 → 16 | Grinding: mostly verification that overstated its coverage |
+| 19 | 16/20 | Performance reached 4/4; four gates still could not see |
+| 20 | **19/20** | Implementation Integrity: two agent-facing docs had drifted |
 
-**Stop here.** Pass 6 is the argument. Its two most serious findings were code
-written one turn earlier *to fix pass 5's findings*:
+### What the passes were actually finding
 
-- the gzip middleware added for a performance finding shipped a **path
-  traversal** (`/dashboard/../../package.json` → 200, the repo's own file)
-- the negative cache added for the same finding was **dead code** — the guard
-  compared against the tick it had just been set to, so it could never fire
-
-And the regression test first written for the traversal was itself decorative:
-`fetch()` normalises `../` client-side, so it never sent the attack and passed
-against a knowingly vulnerable server.
-
-At six passes the remediation loop has become a comparable source of defects to
-the one it is closing. The productive move is to work the list below
-deliberately, not to chase the next point.
-
-**The score is not climbing, and that is the honest result.** Passes 3–5 spent
-most of their findings auditing the *verification* rather than the code — and
-were right to. Five separate times, a gate reported green on something it could
-not actually see:
+The dominant finding across all twenty passes was not broken UI. It was
+**verification reporting green on something it could not see** — nine separate
+times:
 
 - `impeccable detect` exits 0 having scanned nothing
 - `registry-gate`'s theme check could not distinguish `:root` from `.dark`
+- `registry-gate` then called every theme-invariant token "absent" because it
+  compared blocks instead of modelling the cascade
 - `a11y-gate` counted a vendor stylesheet as our reduced-motion rule
 - `a11y-gate` measured a foreign database because it served the demo without
   rewriting the endpoint
-- the `components.css` colour check skipped every rule it was written to protect,
-  because they are all one-liners
+- `a11y-gate`'s contrast dedupe keyed on the element's own (transparent)
+  background, collapsing different composited surfaces into one measurement
+- `a11y-gate` probed reduced motion on a page where it had already injected
+  `animation: none !important`, so the assertion read identically with the rule
+  deleted
+- the `components.css` colour check skipped every rule it was written to
+  protect, because they are all one-liners
+- `@theme inline` had no gate at all: a class naming a real token that
+  `index.css` does not map emits zero CSS and builds green
 
-Each of those was fixed and then mutation-tested. That is the durable outcome of
-this exercise; the number is not.
+Every one was fixed and then **mutation-tested in both directions**. Several
+fixes were themselves caught being decorative on the pass after they landed —
+including two in pass 20's own remediation, where the first viewport set chosen
+to prove the widget's height clamp passed with the clamp reverted, and the
+first attachment-parity canary was a no-op because the test item had no
+attachment. That loop is the durable output of this exercise.
 
-**What a 20/20 would require** is not more of this loop. Four of the five
-dimensions are held down by things that are genuine scope decisions, not
-oversights — listed below.
+## The one open dimension
+
+**Implementation Integrity — 3/4.** Remaining gap is listed under P2 below
+(`--host 0.0.0.0` ships with no authentication). The other four dimensions
+score 4/4, measured rather than asserted:
+
+| Dimension | Score | Evidence |
+|---|---|---|
+| Accessibility | 4/4 | Contrast in both themes incl. every hovered row and alpha-composited surface; focus indicators driven by real Tab; 24×24 everywhere and 44×44 on every touch viewport; `h1 → 6×h2` with no skips; landmarks, route titles and focus moves; 200% zoom at 320/375/640/700; reduced motion with an intentional still state in both layers |
+| Performance | 4/4 | Lean list projections, async JSON gzip, pre-gzipped hashed assets with ETag/304, read-pass/write-pass pin rendering with a negative cache |
+| Theming | 4/4 | One token system across three surfaces, parity gated in both directions, `@theme` mapping gated, orphan and literal-colour detection, `color-scheme` published |
+| Responsive | 4/4 | 0 sub-44px targets on touch viewports, no horizontal scroll at any width, widget clamped and measured at 320×480 / 568×320 / 375×812 |
 
 ---
 
@@ -56,31 +66,25 @@ oversights — listed below.
 
 ### P1
 
-- **Attachments have no agent-facing surface.** `itemMarkdown` (the DEFAULT MCP
-  response format) drops them entirely, and no SKILL.md or AGENTS.md mentions
-  them. The dashboard promises "an agent copies it to the target path and
-  commits it" — nothing tells an agent that. A full store/HTTP/dashboard feature
-  is invisible to the consumers it was built for.
-- **The widget's `.tip` fails SC 1.4.13.** It is `pointer-events:none`, has no
-  dismiss that leaves focus in place, and sits `position:fixed` over host
-  content, so the "does not obscure" exception does not apply.
+- **The widget's `.tip` sits `position: fixed` over host content.** Dismissible
+  (Escape), hoverable and persistent are all implemented, so SC 1.4.13 is met —
+  but the "does not obscure" exception still does not apply, and no gate
+  measures what it covers on a host page.
 
 ### P2
 
-- **`--host 0.0.0.0` still has no authentication.** Documented and warned about,
-  but the mode is promoted for phone testing. A bearer token is the next real
-  security milestone.
-- **`itemMarkdown` vs `structuredContent` drift.** Two representations of an
-  item maintained by hand; nothing asserts they carry the same fields.
+- **`--host 0.0.0.0` still has no authentication.** Documented and warned
+  about, but the mode is promoted for phone testing. A bearer token is the next
+  real security milestone, and it is the only thing keeping Implementation
+  Integrity off 4/4.
 - **Widget bundle is 46KB raw.** 15KB gzipped and the hub now compresses, so
   this is not urgent — but it is 4.6× the original sketch.
 
 ### P3
 
-- Repro steps are still hardcoded `repro_steps: []` in the widget (see B1 below).
-- `next-themes` remains a dependency whose `useTheme()` is inert here.
+- Repro steps are still hardcoded `repro_steps: []` in the widget (see B1).
 - `design/components.css` is published but has no in-repo consumer — it exists
-  for external adopters only. Reasonable, but worth stating in its header.
+  for external adopters only. Worth stating in its header.
 
 ---
 
@@ -94,9 +98,9 @@ These recur in audits. Each is a decision with a rationale:
   highest-frequency action is friction with no payoff.
 - **`text-[11px]`** is the shared `.lb-label` token, which the widget renders
   identically. Tailwind has no 11px step.
-- **44×44 not pursued for in-row table controls.** 24×24 (SC 2.5.8, AA) is met
-  everywhere; 44px targets exist on the filter strip and phone cards. The audit
-  rubric's top band is "WCAG AA fully met", not AAA.
+- **44×44 not enforced for in-row table controls on desktop pointers.** Measured
+  0 sub-44px targets at 375×812 and 768×1024; the 15 that remain at 1280×800 are
+  desktop-only, where SC 2.5.8 (AA) requires 24×24 and is met.
 - **No `aria-modal` on the capture form.** We neither trap focus nor can mark a
   host page inert. Claiming modality without enforcing it is worse than not
   claiming it.
@@ -123,11 +127,13 @@ Six gates plus `smoke` and `e2e` — eight CI verification steps.
 | Gate | Guards against | Verified by breaking |
 |---|---|---|
 | `init-gate` | init rendering drift, non-idempotent merges | ✅ |
-| `registry-gate` | stale published registry; theme drift **per block**; a published recipe missing variables it consumes | ✅ |
+| `registry-gate` | stale published registry; theme drift per block, resolved the way a browser resolves it; a published recipe missing variables it consumes | ✅ |
 | `dashboard-gate` | committed build drifting from source | ✅ |
-| `widget-token-gate` | the widget's inlined token copy drifting; status colours colliding; literal colours in `components.css` | ✅ |
+| `widget-token-gate` | the widget's inlined token copy drifting; status colours colliding; literal colours in `components.css`; **`lb-*` utilities `@theme` never mapped** | ✅ |
 | `impeccable-gate` | design anti-patterns; **canary-verified** because the detector exits 0 on an empty scan | ✅ |
-| `a11y-gate` | contrast (both themes, hovered rows, alpha-composited), target size, accessible names, landmarks, route titles, reduced motion, widget labels and keyboard operation — **hermeticity-guarded** | ✅ |
+| `a11y-gate` | contrast (both themes, hovered rows, alpha-composited), target size, accessible names, landmarks, route titles, reduced motion in both layers, widget labels/keyboard/**responsive** — hermeticity-guarded | ✅ |
+| `smoke` | MCP contract; **`itemMarkdown` dropping a field `structuredContent` carries** | ✅ |
+| `e2e` | the full human→bus→agent→human loop; **assets reaching the agent-facing rendering** | ✅ |
 
 Every one has had both failure paths verified by deliberately breaking it. That
 discipline is the thing worth keeping from this exercise.

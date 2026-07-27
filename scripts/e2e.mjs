@@ -12,11 +12,14 @@
  *
  * Run: node scripts/e2e.mjs
  */
+import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { request as httpRequest } from "node:http";
+
+const ROOT = process.cwd();
 import { chromium } from "playwright";
 
 // Dedicated E2E ports — never the hub's 7077/5173, so a running central
@@ -548,6 +551,22 @@ async function main() {
     typeof asset?.path === "string" && asset.path.includes(contactItem.id),
     "the agent gets an absolute file path, not just a URL",
   );
+  // The smoke test asserts itemMarkdown/structuredContent parity over MCP, but
+  // there is no MCP attach tool, so the one field that motivated that check —
+  // attachments — was the one field it could never cover. An asset an agent
+  // never sees is a deliverable that never gets placed.
+  // itemMarkdown directly: the HTTP API has no markdown format, so fetching the
+  // item and asserting on the JSON would only have re-tested the JSON. This is
+  // the exact string an agent receives from loopback_get_feedback by default.
+  const { itemMarkdown } = await import(pathToFileURL(join(ROOT, "dist", "format.js")).href);
+  const prose = itemMarkdown(withAtt);
+  for (const needle of [asset.name, asset.target_path, asset.path, "ASSET"]) {
+    assert(
+      prose.includes(needle),
+      `the agent-facing rendering names the asset's ${needle === "ASSET" ? "intent" : "path/name"} (${String(needle).slice(0, 40)})`,
+    );
+  }
+
   const traversal = await fetch(
     `${LB}/feedback/${contactItem.id}/attachments?name=x&intent=asset&target=../../etc/passwd`,
     { method: "POST", headers: { "Content-Type": "text/plain" }, body: "x" },
