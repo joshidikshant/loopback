@@ -1024,7 +1024,11 @@
         encodeURIComponent(PROJECT) +
         "&route=" +
         encodeURIComponent(location.pathname) +
-        "&limit=50",
+        "&limit=50" +
+        // Only the pin fields. This poll runs every 10 seconds on every open
+        // page; unprojected it pulled 580KB where 24.6KB carries everything
+        // rendered here.
+        "&view=pins",
       { method: "GET" }
     )
       .then(function (r) {

@@ -461,8 +461,10 @@ async function main() {
     // The gate only ever varied title and body, never the root font size — so a
     // header that could not shrink pushed the search input 81px off the LEFT
     // edge at 375px, with negative overflow and no scrollbar to recover it.
-    // 320px is SC 1.4.10's reflow floor. Everything here only ever ran at 375.
-    for (const width of [320, 375]) {
+    // 320 is SC 1.4.10's reflow floor; 640 and 700 are where the attachment
+    // upload row failed. And the EDIT FORM is opened below — no gate had ever
+    // clicked into it, so a 33px overflow at 320px/200% went unseen.
+    for (const width of [320, 375, 640, 700]) {
       await page.setViewportSize({ width, height: 812 });
       for (const route of ["/queue", `/queue/${detail}`]) {
         await page.goto(`${LB}${route}`);
@@ -489,6 +491,26 @@ async function main() {
           return de.scrollWidth > de.clientWidth ? { s: de.scrollWidth, c: de.clientWidth } : null;
         });
         check(!plain, `${route} at ${width}px: no horizontal overflow${plain ? ` — ${JSON.stringify(plain)}` : ""}`);
+
+        // The edit form is a whole surface the gate never entered.
+        if (route.includes("/queue/")) {
+          const edit = await page.$('button:has-text("Edit")');
+          if (edit) {
+            await edit.click();
+            await page.waitForSelector("#lb-edit-title");
+            await page.evaluate(() => (document.documentElement.style.fontSize = "32px"));
+            await page.waitForTimeout(150);
+            const inEdit = await page.evaluate(() => {
+              const de = document.documentElement;
+              return de.scrollWidth > de.clientWidth ? { s: de.scrollWidth, c: de.clientWidth } : null;
+            });
+            check(!inEdit,
+              `edit form at ${width}px and 200% zoom: no horizontal overflow${inEdit ? ` — ${JSON.stringify(inEdit)}` : ""}`);
+            await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+            const cancel = await page.$('button:has-text("Cancel")');
+            if (cancel) await cancel.click();
+          }
+        }
       }
     }
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -499,14 +521,22 @@ async function main() {
     await wpage.waitForFunction(() => !!window.__loopback);
     const boundTo = await wpage.evaluate(() => window.__loopback.endpoint);
     check(boundTo === LB_EXPECTED, `widget is bound to THIS run's hub (${boundTo})`);
+    // Enter pin mode, then drive the gesture with the REAL keyboard. Dispatching
+    // synthetic KeyboardEvents only proves the listener is bound; it cannot show
+    // the gesture is operable by an actual key press.
+    await wpage.evaluate(() => {
+      const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+      sr.querySelector(".fab").click();
+      sr.querySelector(".pinbtn").click();
+    });
+    await wpage.keyboard.press("ArrowDown");
+    await wpage.waitForTimeout(120);
+    await wpage.keyboard.press("Enter");
+    await wpage.waitForTimeout(200);
     const widget = await wpage.evaluate(() => {
       const host = [...document.querySelectorAll("*")].find((e) => e.shadowRoot);
       const sr = host.shadowRoot;
       const fab = sr.querySelector(".fab");
-      fab.click();
-      sr.querySelector(".pinbtn").click();
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       const form = sr.querySelector(".form");
       const controls = form ? [...form.querySelectorAll("input,textarea,select")] : [];
       return {

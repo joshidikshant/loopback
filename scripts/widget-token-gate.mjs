@@ -13,7 +13,7 @@
  *
  * Run: node scripts/widget-token-gate.mjs
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
@@ -246,8 +246,14 @@ const flattened = [];
   componentsCss.split("\n").forEach((raw, i) => {
     if (!buf) startLine = i + 1;
     buf += (buf ? " " : "") + raw.trim();
-    if (raw.includes(";") || raw.includes("}")) {
-      flattened.push([buf, startLine]);
+    // Split on `;` AND on every `{`/`}`, not just the first. Treating `}` as a
+    // plain terminator merged declarations sitting inside a nested at-rule
+    // block into whatever came before them, so an @media rule's contents were
+    // invisible to the scan.
+    if (/[;{}]/.test(raw)) {
+      for (const piece of buf.split(/[{}]/)) {
+        if (piece.trim()) flattened.push([piece, startLine]);
+      }
       buf = "";
     }
   });
@@ -297,6 +303,38 @@ if (hardcoded.length === 0) {
     fail(`design/components.css:${line} hardcodes ${prop}: ${value} — use a token`);
   }
 }
+
+// ---------- dashboard/src: the largest consumer, previously unscanned ----------
+// Tailwind classes, not CSS declarations: bg-black/50, text-white, border-red-500.
+// Arbitrary values carrying a literal (bg-[#fff]) count too. shadcn primitives
+// are excluded — they are upstream verbatim and drift there is a sync question,
+// which `shadcn add --diff` answers.
+const PALETTE = "slate|gray|grey|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
+const CLASS_LITERAL = new RegExp(
+  "\\b(?:bg|text|border|ring|fill|stroke|outline|shadow|from|via|to)-(?:white|black|(?:" +
+    PALETTE +
+    ")-\\d{2,3})(?:/\\d{1,3})?\\b|\\b(?:bg|text|border|ring)-\\[#[0-9a-fA-F]{3,8}\\]",
+  "g",
+);
+const appFiles = readdirSync(join(ROOT, "dashboard", "src"), { recursive: true })
+  .filter((f) => typeof f === "string" && /\.tsx?$/.test(f))
+  .filter((f) => !f.includes("components/ui/"))
+  .map((f) => join("dashboard", "src", f));
+let appScanned = 0;
+for (const rel of appFiles) {
+  // Strip comments first. The scan's own first run flagged `text-white` and
+  // `text-black` inside the comment in api.ts that explains why those literals
+  // were wrong — a rule reporting the documentation of the bug it prevents.
+  const text = readFileSync(join(ROOT, rel), "utf-8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  appScanned++;
+  for (const hit of text.match(CLASS_LITERAL) ?? []) {
+    fail(`${rel} uses the literal colour class \`${hit}\` — use a token utility`);
+  }
+}
+if (appScanned < 3) fail(`dashboard/src scan only saw ${appScanned} files — it is not reading the tree`);
+else pass(`dashboard/src uses token utilities throughout (${appScanned} files scanned)`);
 
 if (failures) {
   console.error(`\nWIDGET TOKEN GATE FAILED — ${failures} mismatch(es)`);

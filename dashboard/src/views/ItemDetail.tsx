@@ -176,10 +176,16 @@ export function ItemDetail({
       </div>
     );
   }
-  // Skeletons in the shape of the real page, so it does not reflow on arrival.
+  // Skeletons in the shape of the real page, so it does not reflow on arrival —
+  // plus a heading and a live status, because the route change moves focus into
+  // <main> and this branch used to give it nothing to announce.
   if (!item)
     return (
       <div className="grid gap-4">
+        <h1 className="text-xl font-semibold tracking-tight">Loading feedback item</h1>
+        <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+          Loading {id}…
+        </p>
         <Skeleton className="h-8 w-40" />
         <Skeleton className="h-7 w-2/3" />
         <Skeleton className="h-28 w-full" />
@@ -311,7 +317,7 @@ export function ItemDetail({
       <h1 className="text-xl font-semibold tracking-tight break-all">{item.title}</h1>
 
       {editing ? (
-        <Card data-lb-region="edit" className="grid gap-3 p-4">
+        <Card data-lb-region="edit" className="grid min-w-0 gap-3 p-4 [&>*]:min-w-0">
           <Label htmlFor="lb-edit-title" className="sr-only">
             Title
           </Label>
@@ -540,7 +546,7 @@ export function ItemDetail({
                 <File aria-hidden />
               )}
             </AttachmentMedia>
-            <AttachmentContent>
+            <AttachmentContent className="min-w-0">
               <AttachmentTitle className="whitespace-normal" title={a.name}>
                 {safeHref(a.url) ? (
                   <a
@@ -609,7 +615,7 @@ export function ItemDetail({
         {/* A fixed 150px track does not scale with text, so at 200% zoom the
             Select overlapped the Input. min-content lets the track grow with its
             own contents instead. */}
-        <div className="grid gap-2 sm:grid-cols-[minmax(9rem,auto)_1fr_auto] sm:items-center">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] sm:items-center [&>*]:min-w-0">
           <Select value={intent} onValueChange={(v) => setIntent(v as "reference" | "asset")}>
             <SelectTrigger aria-label="Attachment intent"><SelectValue /></SelectTrigger>
             <SelectContent>

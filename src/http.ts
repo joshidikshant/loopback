@@ -450,6 +450,17 @@ export function createHttpApp(
       res.json({ ...result, items: result.items.map(pinProjection) });
       return;
     }
+    // `view=pins` — what the widget's 10s hydration poll actually needs. It
+    // reads six fields (id, dom_selector, status, title, assignee_agent, links)
+    // and was pulling full-fidelity items: measured 580KB against 24.6KB, a
+    // 23.6x waste on the highest-frequency call in the product, once per poll
+    // per open page. Same-origin callers send no Origin, so the trust check
+    // that already applies this projection to foreign widgets skipped the one
+    // running on our own dashboard.
+    if (req.query.view === "pins") {
+      res.json({ ...result, items: result.items.map(pinProjection) });
+      return;
+    }
     // Opt-in, not silent. `GET /feedback` is a documented contract and narrowing
     // it by default broke a caller immediately (the e2e reads `network` from
     // here). The dashboard asks for ?view=list because it renders eleven scalar
