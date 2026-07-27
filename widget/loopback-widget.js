@@ -289,8 +289,18 @@
     "--lb-highlight:oklch(0.488 0.243 264.376);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.18);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.22);" +
     "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.2);" +
-    "--lb-font:system-ui,-apple-system,'Segoe UI',sans-serif}" +
-    "@media (prefers-color-scheme:dark){.lb-root{color-scheme:dark;" +
+    "--lb-font:system-ui,-apple-system,'Segoe UI',sans-serif}";
+  // The dark token body, emitted under TWO conditions.
+  //
+  // The widget follows the VIEWER's prefers-color-scheme so it stays legible on
+  // any host page rather than camouflaging into it. That is right for a foreign
+  // site and wrong when the host has an explicit theme of its own: the hub's own
+  // dashboard toggles a `.dark` class, and the widget sat light on a dark page —
+  // measured, the FAB at 1.1:1 and the panel a pure-white slab. `.lb-dark` is
+  // set from JS when the host declares a theme; the media query still covers
+  // every host that does not.
+  var DARK_BODY =
+"color-scheme:dark;" +
     "--lb-bg:oklch(0.205 0 0);--lb-fg:oklch(0.985 0 0);" +
     "--lb-muted:oklch(0.269 0 0);--lb-muted-fg:oklch(0.708 0 0);" +
     "--lb-border:oklch(1 0 0/10%);--lb-input:oklch(1 0 0/15%);" +
@@ -304,7 +314,13 @@
     "--lb-wontfix:oklch(0.707 0.022 261.325);--lb-wontfix-fg:oklch(0.205 0 0);" +
     "--lb-highlight:oklch(0.707 0.165 254.624);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.5);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.55);" +
-    "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.6)}}";
+    "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.6);";
+  var TOKENS_DARK =
+    "@media (prefers-color-scheme:dark){.lb-root:not(.lb-light){" + DARK_BODY + "}}" +
+    ".lb-root.lb-dark{" + DARK_BODY + "}";
+
+
+  TOKENS += TOKENS_DARK;
 
   var RADIUS_MD = "calc(var(--lb-radius) * 0.8)";
   var RADIUS_SM = "calc(var(--lb-radius) * 0.6)";
@@ -413,6 +429,32 @@
   // element the host page has no way to select.
   var ui = mk("div", "lb-root");
   root.appendChild(ui);
+
+  /**
+   * Follow the host's theme when the host declares one.
+   *
+   * Most host pages declare nothing, and the media query above keeps the widget
+   * legible on them. But a page that themes itself with a class — the hub's own
+   * dashboard does — leaves the widget stranded in the opposite theme. Watched
+   * rather than read once, because the dashboard's toggle flips it at runtime.
+   */
+  function syncHostTheme() {
+    var de = document.documentElement;
+    var explicit = de.classList.contains("dark")
+      ? "dark"
+      : de.classList.contains("light") || de.dataset.theme === "light"
+        ? "light"
+        : de.dataset.theme === "dark"
+          ? "dark"
+          : null;
+    ui.classList.toggle("lb-dark", explicit === "dark");
+    ui.classList.toggle("lb-light", explicit === "light");
+  }
+  syncHostTheme();
+  new MutationObserver(syncHostTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme"],
+  });
 
   var FAB_LABEL = "✦ Loopback";
   var TAGLINE = "Pin feedback on this page — an agent picks it up and the pin turns green.";
@@ -1154,12 +1196,28 @@
 
   // SPA route changes (Next/React routers): refresh immediately instead of
   // leaving the previous route's pins up until the next poll tick.
+  // Debounced, and only when the PATH actually changed.
+  //
+  // This fired one full /feedback fetch per call with neither guard: measured
+  // 200 calls producing 200 fetches, every one with an identical pathname. Any
+  // host that syncs state into the URL — the hub's own dashboard writes filters
+  // and the search term on a keystroke debounce — turned this into a fetch
+  // storm against the hub. Pins are keyed on the route, so a same-path call
+  // cannot change what they render.
+  var lastPath = location.pathname;
+  var routeTimer = null;
+  function onRouteChange() {
+    if (location.pathname === lastPath) return;
+    lastPath = location.pathname;
+    clearTimeout(routeTimer);
+    routeTimer = setTimeout(refreshPins, 120);
+  }
   ["pushState", "replaceState"].forEach(function (fn) {
     var orig = history[fn];
     if (!orig) return;
     history[fn] = function () {
       var out = orig.apply(this, arguments);
-      setTimeout(refreshPins, 50);
+      setTimeout(onRouteChange, 0);
       return out;
     };
   });

@@ -385,6 +385,40 @@ async function main() {
       `detail: every control has an accessible name${item.unnamed.length ? ` — ${JSON.stringify(item.unnamed)}` : ""}`);
     check(item.title.includes(detail), "detail: route change set the document title");
 
+    // SC 2.4.3 / 2.4.11: focus after a write. The gate asserted nothing about
+    // this, and three of four write paths were dumping focus to <body> — the
+    // comment in the code claimed otherwise for two of them.
+    await page.goto(`${LB}/queue/${detail}`);
+    await page.waitForSelector("#lb-comment");
+    const focusAfter = async (label, act) => {
+      await act();
+      await page.waitForTimeout(700);
+      const landed = await page.evaluate(() => {
+        const a = document.activeElement;
+        if (!a || a === document.body) return null;
+        return (
+          a.getAttribute?.("data-lb-region") ??
+          a.closest?.("[data-lb-region]")?.getAttribute("data-lb-region") ??
+          a.tagName
+        );
+      });
+      check(landed !== null, `focus stays in context after ${label} (landed on ${landed ?? "<body>"})`);
+    };
+    await focusAfter("a comment", async () => {
+      await page.fill("#lb-comment", "gate probe");
+      await page.click('button:has-text("Comment")');
+    });
+    await focusAfter("an edit save", async () => {
+      await page.click('button:has-text("Edit")');
+      await page.waitForSelector("#lb-edit-title");
+      await page.click('button:has-text("Save")');
+    });
+    await focusAfter("a status change", async () => {
+      await page.locator("[data-lb-region=status] button[role=combobox]").first().click();
+      await page.waitForTimeout(250);
+      await page.locator('[role=option]:has-text("triaged")').first().click();
+    });
+
     // Seed an attachment first. Every zoom and overflow assertion below used to
     // run on an item that had none, so the attachment UI — which carries two
     // fixed-px floors — was never in the measured state at all.

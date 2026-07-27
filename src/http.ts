@@ -205,16 +205,41 @@ export function createHttpApp(
   });
 
   /** Embeddable capture widget. */
-  app.get("/widget.js", (_req, res) => {
-    try {
-      const source = readFileSync(
-        join(__dirname, "..", "widget", "loopback-widget.js"),
-        "utf-8",
-      );
-      res.type("application/javascript").send(source);
-    } catch {
+  // Read once and pre-compressed. This is the single asset every host page
+  // loads on every navigation — 51,348 B on the wire against 16,874 gzipped,
+  // re-read from disk per request, while the dashboard bundle (loaded once, on
+  // our own origin) already had both gzip and immutable caching.
+  let widgetSource: Buffer | null = null;
+  let widgetGzip: Buffer | null = null;
+  let widgetEtag = "";
+  try {
+    widgetSource = readFileSync(join(__dirname, "..", "widget", "loopback-widget.js"));
+    widgetGzip = gzipSync(widgetSource);
+    widgetEtag = `W/"${randomBytes(8).toString("hex")}"`;
+  } catch {
+    /* reported per-request below */
+  }
+  app.get("/widget.js", (req, res) => {
+    if (!widgetSource) {
       res.status(404).send("// widget file missing — reinstall loopback-mcp-server");
+      return;
     }
+    res.type("application/javascript");
+    res.setHeader("ETag", widgetEtag);
+    // Short max-age, not immutable: unlike the hashed bundle this URL is stable
+    // across versions, so a long TTL would pin host pages to a stale widget.
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Vary", "Accept-Encoding");
+    if (req.headers["if-none-match"] === widgetEtag) {
+      res.status(304).end();
+      return;
+    }
+    if (/\bgzip\b/.test(String(req.headers["accept-encoding"] ?? "")) && widgetGzip) {
+      res.setHeader("Content-Encoding", "gzip");
+      res.end(widgetGzip);
+      return;
+    }
+    res.end(widgetSource);
   });
 
   /**

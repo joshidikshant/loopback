@@ -392,7 +392,7 @@ design/         shared tokens.css — one design system for widget, dashboard, r
 skills/         canonical loopback SKILL.md (installed for Claude + Codex)
 integrations/   canonical playbook + per-agent setup + widget embed + keep-alive
 plugin/         Claude Code plugin (skill + MCP registration); repo doubles as its marketplace
-scripts/        e2e.mjs · the four gates · screenshot.mjs
+scripts/        e2e.mjs · the six gates · screenshot.mjs
 docs/           the decision history (spec → memo → paths → technical path)
 ```
 

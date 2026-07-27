@@ -329,9 +329,13 @@ export class LoopbackStore {
       )
       .run(status, nowIso(), id);
     if (res.changes === 0) return null;
-    if (note) {
-      this.addComment(id, author, `[status → ${status}] ${note}`);
-    }
+    // Always, like resolve(). The label on the control that reaches this says
+    // "recorded on the trail" — that has to be true even when the note is blank.
+    this.addComment(
+      id,
+      author,
+      note ? `[status → ${status}] ${note}` : `[status → ${status}] (no note given)`,
+    );
     return this.get(id);
   }
 

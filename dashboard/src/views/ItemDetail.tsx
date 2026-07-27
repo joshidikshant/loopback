@@ -182,7 +182,7 @@ export function ItemDetail({
   const context = (item.extra as { context?: Record<string, unknown> }).context;
 
   /** Every write funnels through here: one in-flight guard, one error path. */
-  const run = async (fn: () => Promise<void>): Promise<void> => {
+  const run = async (fn: () => Promise<void>, region?: string): Promise<void> => {
     if (busy) return;
     // Disabling the control that is currently focused sends focus to <body>,
     // which drops a keyboard user out of the form mid-task. Remember where they
@@ -195,7 +195,12 @@ export function ItemDetail({
     // A stable id resolved AFTER the write always exists, so record where to
     // land rather than which node to return to.
     const closestCard = focused?.closest("[data-slot=card], header") as HTMLElement | null;
-    const anchorId = focused?.closest("[data-lb-region]")?.getAttribute("data-lb-region") ?? null;
+    // The region is passed IN, not derived. Deriving it from the focused
+    // element's ancestors fails on exactly the paths that need it: a Radix
+    // Select portals its item to <body> (no card ancestor at all), and Save
+    // unmounts the card the id sits on. Only the comment path ever worked.
+    const anchorId =
+      region ?? focused?.closest("[data-lb-region]")?.getAttribute("data-lb-region") ?? null;
     setBusy(true);
     try {
       await fn();
@@ -231,7 +236,7 @@ export function ItemDetail({
       setEditing(false);
       setDraft({});
       reload();
-    });
+    }, "detail-header");
 
   const upload = async (file: File): Promise<void> => {
     if (intent === "asset" && !target.trim()) {
@@ -256,7 +261,7 @@ export function ItemDetail({
 
   return (
     <div className="grid min-w-0 gap-4 [&>*]:min-w-0">
-      <header className="flex flex-wrap items-center gap-3">
+      <header data-lb-region="detail-header" className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="sm" className="h-11" onClick={() => navigate("/queue")}>
           <ArrowLeft className="size-4" /> Queue
         </Button>
@@ -490,7 +495,7 @@ export function ItemDetail({
       </div>
 
       {/* Attachments — intent is the whole point, so it is the first thing chosen. */}
-      <Card className="grid gap-3 p-4">
+      <Card data-lb-region="attachments" className="grid gap-3 p-4">
         <div className="flex items-center gap-2">
           <Paperclip className="size-4" />
           <span className="text-sm font-medium">
@@ -508,7 +513,7 @@ export function ItemDetail({
               )}
             </AttachmentMedia>
             <AttachmentContent>
-              <AttachmentTitle>
+              <AttachmentTitle className="whitespace-normal" title={a.name}>
                 {safeHref(a.url) ? (
                   <a
                     className="inline-block min-h-6 break-all underline"
@@ -522,7 +527,10 @@ export function ItemDetail({
                   <span className="break-all">{a.name}</span>
                 )}
               </AttachmentTitle>
-              <AttachmentDescription>
+              <AttachmentDescription
+                className="whitespace-normal"
+                title={a.target_path ?? undefined}
+              >
                 {/* `asset` is the consequential one — it gets copied into the
                     repo — so it takes the emphasis. Reusing the green "verified"
                     status colour here said nothing true about the attachment. */}
@@ -556,7 +564,7 @@ export function ItemDetail({
                           await api.detach(id, a.id);
                           toast.success("Removed");
                           reload();
-                        })
+                        }, "attachments")
                       }
                     >
                       Remove
@@ -731,7 +739,7 @@ export function ItemDetail({
                 setNote("");
                 toast.success(`Status is now ${v}`);
                 reload();
-              })
+              }, "status")
             }
           >
             <SelectTrigger aria-label="Status" disabled={busy}><SelectValue /></SelectTrigger>

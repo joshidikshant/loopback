@@ -40,16 +40,26 @@ function block(css, selector) {
   return out;
 }
 
-/** Pull the widget's inlined custom properties for one theme. */
-function widgetVars(themeMarker) {
-  const start = widgetJs.indexOf(themeMarker);
-  if (start === -1) return null;
-  // Dark starts at the media query; light runs from .lb-root to that query.
-  const darkAt = widgetJs.indexOf("@media (prefers-color-scheme:dark)");
-  const slice =
-    themeMarker === ".lb-root{display:contents"
-      ? widgetJs.slice(start, darkAt)
-      : widgetJs.slice(start, widgetJs.indexOf('";', start));
+/**
+ * Pull the widget's inlined custom properties for one theme.
+ *
+ * Light lives in the `.lb-root{...}` rule; dark lives in the `DARK_BODY`
+ * constant, which the widget emits under BOTH the media query and an explicit
+ * `.lb-dark` host class. Anchoring on the constant rather than on the media
+ * query means the parser does not break when that emission changes shape — it
+ * did, and this gate reported 51 phantom mismatches.
+ */
+function widgetVars(theme) {
+  let slice;
+  if (theme === "light") {
+    const start = widgetJs.indexOf(".lb-root{display:contents");
+    if (start === -1) return null;
+    slice = widgetJs.slice(start, widgetJs.indexOf("var DARK_BODY", start));
+  } else {
+    const start = widgetJs.indexOf("var DARK_BODY");
+    if (start === -1) return null;
+    slice = widgetJs.slice(start, widgetJs.indexOf("var TOKENS_DARK", start));
+  }
   const out = {};
   for (const [, name, value] of slice.matchAll(/(--lb-[\w-]+):\s*([^;"]+)/g)) {
     out[name] = value.trim().replace(/\s+/g, " ");
@@ -123,11 +133,11 @@ const norm = (v) =>
     .replace(/\s+/g, " ")
     .trim();
 
-for (const [theme, source, marker] of [
-  ["light", light, ".lb-root{display:contents"],
-  ["dark", dark, "@media (prefers-color-scheme:dark)"],
+for (const [theme, source] of [
+  ["light", light],
+  ["dark", dark],
 ]) {
-  const inWidget = widgetVars(marker);
+  const inWidget = widgetVars(theme);
   if (!inWidget) {
     fail(`could not find the widget's ${theme} token block`);
     continue;
