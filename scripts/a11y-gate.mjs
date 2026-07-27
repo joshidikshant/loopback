@@ -453,7 +453,7 @@ async function main() {
     // run on an item that had none, so the attachment UI — which carries two
     // fixed-px floors — was never in the measured state at all.
     await fetch(
-      `${LB}/feedback/${detail}/attachments?name=a-fairly-long-asset-name.svg&intent=asset&target=public/logos/acme.svg`,
+      `${LB}/feedback/${detail}/attachments?name=logo-primary-on-dark-a8f3e91c4b7d2e6f5a0c9b8e7d6f5a4b.svg&intent=asset&target=public/logos/acme.svg`,
       { method: "POST", headers: { "Content-Type": "image/svg+xml" }, body: "<svg/>" },
     );
 
@@ -581,6 +581,33 @@ async function main() {
         `widget (${scheme}): every target clears 24x24${m.smallTargets.length ? ` — ${JSON.stringify(m.smallTargets)}` : ""}`);
     }
     await wpage.emulateMedia({ colorScheme: "light" });
+
+    // ---------- the delete-confirm dialog ----------
+    // No gate ever opened it. It is position:fixed, so its overflow never
+    // reaches documentElement.scrollWidth — a title 215px past the right edge
+    // at 320px was invisible to every overflow check in this file, on the one
+    // irreversible action in the product.
+    await page.setViewportSize({ width: 320, height: 812 });
+    await page.goto(`${LB}/queue/${detail}`);
+    await page.waitForSelector('[aria-label^="Remove attachment"]');
+    await page.click('[aria-label^="Remove attachment"]');
+    await page.waitForSelector("[role=alertdialog]");
+    await page.evaluate(KILL_MOTION);
+    const dialog = await page.evaluate(() => {
+      const el = document.querySelector("[role=alertdialog]");
+      const r = el.getBoundingClientRect();
+      const title = el.querySelector("h2, [data-slot=alert-dialog-title]");
+      const tr = title?.getBoundingClientRect();
+      return {
+        spillRight: Math.round(r.right - window.innerWidth),
+        titleSpill: tr ? Math.round(tr.right - window.innerWidth) : 0,
+        readable: tr ? tr.right <= window.innerWidth + 1 : false,
+      };
+    });
+    check(dialog.spillRight <= 0 && dialog.readable,
+      `delete-confirm fits the 320px viewport — the user can read WHICH file (dialog ${dialog.spillRight}px, title ${dialog.titleSpill}px past the edge)`);
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 1280, height: 800 });
 
     // ---------- the PUBLISHED vanilla recipe ----------
     // design/components.css is shipped to adopters as @loopback/loopback-components

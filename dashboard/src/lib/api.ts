@@ -119,7 +119,10 @@ async function okOrThrow(res: Response, action: string): Promise<Response> {
 
 export const api = {
   list(filters: Filters, limit = 200): Promise<ListResult> {
-    const qs = new URLSearchParams({ limit: String(limit) });
+    // view=list drops console/network/repro_steps/extra — fields the queue
+    // never renders and which dominate the payload (measured 4.9x smaller on
+    // realistic data). The detail route fetches full fidelity per item.
+    const qs = new URLSearchParams({ limit: String(limit), view: "list" });
     for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
     return fetch(`/feedback?${qs}`).then(json<ListResult>);
   },

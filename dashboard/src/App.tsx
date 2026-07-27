@@ -84,8 +84,13 @@ export default function App(): React.JSX.Element {
         ) : (
           <QueueList navigate={navigate} themeToggle={<ThemeToggle />} />
         )}
-        <Toaster position="bottom-right" />
       </main>
+      {/* OUTSIDE <main>, and out of the forward tab flow.
+          Sonner makes each toast a tabindex=0 list item and restores focus on
+          blur; inside the landmark that meant Tab cycled between the last
+          control and the toast forever, with the dismiss timer paused the whole
+          time. Sonner's own hotkey still reaches them deliberately. */}
+      <Toaster position="bottom-right" />
     </TooltipProvider>
   );
 }

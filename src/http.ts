@@ -49,6 +49,48 @@ function selfOrigin(req: express.Request): string {
  * exactly these; everything omitted (body, console, network, extra) is where
  * captured secrets live — response bodies routinely contain auth headers.
  */
+/**
+ * What a LIST caller needs, which is far less than a full item.
+ *
+ * The queue table reads eleven scalar fields. It was handed full-fidelity items
+ * — measured at 16.6MB for `limit=1000`, the limit the dashboard actually asks
+ * for — because `pinProjection` was only applied to untrusted origins, and a
+ * same-origin GET sends no Origin header, so `isTrusted` is true for the very
+ * caller that needs the least. gzip fixed the wire and nothing else: the
+ * JSON.parse cost and the retained heap were untouched.
+ *
+ * `body` stays because the queue searches it client-side. `console`, `network`,
+ * `repro_steps`, `extra` and `comments` — the bulk, and the parts carrying up
+ * to 2KB of captured response body each — do not.
+ */
+function listProjection(item: FeedbackItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    project: item.project,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    source: item.source,
+    reporter: item.reporter,
+    type: item.type,
+    severity: item.severity,
+    title: item.title,
+    body: item.body,
+    route: item.route,
+    url: item.url,
+    dom_selector: item.dom_selector,
+    status: item.status,
+    assignee_agent: item.assignee_agent,
+    resolution: item.resolution,
+    links: item.links,
+    // Only the count is rendered; the objects are not.
+    attachments: (item.attachments ?? []).map((a) => ({ id: a.id, name: a.name, intent: a.intent })),
+    console: [],
+    network: [],
+    repro_steps: [],
+    extra: {},
+  };
+}
+
 function pinProjection(item: FeedbackItem): Record<string, unknown> {
   return {
     id: item.id,
@@ -406,6 +448,14 @@ export function createHttpApp(
       // need. `extra` in particular carries captured response bodies, which
       // routinely include auth headers.
       res.json({ ...result, items: result.items.map(pinProjection) });
+      return;
+    }
+    // Opt-in, not silent. `GET /feedback` is a documented contract and narrowing
+    // it by default broke a caller immediately (the e2e reads `network` from
+    // here). The dashboard asks for ?view=list because it renders eleven scalar
+    // fields; everything else keeps full fidelity.
+    if (req.query.view === "list") {
+      res.json({ ...result, items: result.items.map(listProjection) });
       return;
     }
     res.json(result);

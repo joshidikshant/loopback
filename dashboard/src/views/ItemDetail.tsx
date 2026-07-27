@@ -577,9 +577,11 @@ export function ItemDetail({
                     <Trash2 />
                   </AttachmentAction>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Remove “{a.name}”?</AlertDialogTitle>
+                <AlertDialogContent className="max-w-[calc(100vw-2rem)]">
+                  <AlertDialogHeader className="min-w-0">
+                    <AlertDialogTitle className="min-w-0 break-all">
+                      Remove “{a.name}”?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
                       The file is deleted from the hub. This cannot be undone.
                     </AlertDialogDescription>

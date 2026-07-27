@@ -8,7 +8,7 @@
       "name": "loopback-theme",
       "type": "registry:theme",
       "title": "Loopback theme",
-      "description": "Feedback-status and severity design tokens (open, triaged, in_progress, fixed, verified, wontfix, p0-p3) as CSS variables, in shadcn's oklch contract with light and dark values. Adds to your theme rather than replacing it: every variable is --lb- prefixed, so your own palette is untouched.",
+      "description": "Loopback's design tokens: the full shadcn/ui theme contract (24 standard variables \u2014 background, foreground, primary, muted, ring, radius\u2026) plus Loopback's own --lb-* domain tokens for feedback status, severity and the pin. Installing this REPLACES your shadcn palette; if you only want the domain tokens, copy the --lb-* block from design/tokens.css instead.",
       "author": "Dikshant Joshi <https://github.com/joshidikshant>",
       "categories": [
         "theme",

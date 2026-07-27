@@ -1162,8 +1162,14 @@
       // Off-screen pins leave the tab order entirely. They used to stay
       // focusable at negative coordinates: focus would vanish to a control the
       // user could neither see nor scroll to.
+      // Clamp into the viewport, like the capture form does. An anchor at the
+      // very top or hard against an edge left the pin only partly on screen —
+      // measured 10x24 and 24x14 — so the 24px target size was notional.
+      var PIN = 24;
+      rec.left = Math.max(2, Math.min(rec.left, window.innerWidth - PIN - 2));
+      rec.top = Math.max(2, Math.min(rec.top, window.innerHeight - PIN - 2));
       var visible =
-        rec.top > -24 && rec.top < window.innerHeight && rec.left > -24 && rec.left < window.innerWidth;
+        rec.top > -PIN && rec.top < window.innerHeight && rec.left > -PIN && rec.left < window.innerWidth;
       var vis = visible ? "" : "none";
       if (pin.style.display !== vis) pin.style.display = vis;
       pinEls.push(pin);
