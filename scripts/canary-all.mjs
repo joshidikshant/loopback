@@ -132,6 +132,38 @@ const CASES = [
       ),
   },
   {
+    gate: "e2e (repro steps)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    guards: "the widget capturing typed repro steps",
+    apply: () =>
+      mutate("widget/loopback-widget.js", (s) => s.replace(".slice(0, 20),", ".slice(0, 0),")),
+  },
+  {
+    gate: "e2e (journey)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    guards: "the widget recording the route journey",
+    apply: () =>
+      mutate("widget/loopback-widget.js", (s) =>
+        s.replace("if (journeyBuf.length > 1) extra.journey", "if (journeyBuf.length > 99) extra.journey"),
+      ),
+  },
+  {
+    gate: "e2e (tip retires on file)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    guards: "a filed report retiring the onboarding tip",
+    apply: () =>
+      mutate("widget/loopback-widget.js", (s) => s.replace("            tipDone();", "            void 0;")),
+  },
+  {
+    gate: "a11y-gate (tip persistence)",
+    cmd: ["node", ["scripts/a11y-gate.mjs"]],
+    guards: "the retired-tip flag being honoured on load",
+    apply: () =>
+      mutate("widget/loopback-widget.js", (s) =>
+        s.replace('if (localStorage.getItem(TIP_KEY)) tip.classList.add("done");', 'if (false) tip.classList.add("done");'),
+      ),
+  },
+  {
     gate: "e2e (LAN auth)",
     cmd: ["npm", ["run", "-s", "e2e"]],
     build: BUILD,

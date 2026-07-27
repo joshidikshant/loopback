@@ -58,7 +58,7 @@ whose boundary is asserted in both directions and canaried.
 |---|---|---|
 | Accessibility | 4/4 | Contrast in both themes incl. every hovered row and alpha-composited surface; focus indicators driven by real Tab; 24×24 everywhere and 44×44 on every touch viewport; `h1 → 6×h2` with no skips; landmarks, route titles and focus moves; 200% zoom at 320/375/640/700; reduced motion with an intentional still state in both layers |
 | Performance | 4/4 | On 60 realistic items: full `/feedback` 56,921 B → lean+gzip **1,423 B** (40×), pins+gzip 1,093 B; `/widget.js` 57,183 → 18,945 B pre-compressed with ETag/304; read-pass/write-pass pin rendering with a negative cache |
-| Implementation Integrity | 4/4 | Detector clean and canary-verified; one design system across three surfaces gated in both directions; a LAN bind now refuses unauthenticated reads and writes; `npm run canary` proves all 9 checks fail when their subject breaks |
+| Implementation Integrity | 4/4 | Detector clean and canary-verified; one design system across three surfaces gated in both directions; a LAN bind now refuses unauthenticated reads and writes; `npm run canary` proves all 13 checks fail when their subject breaks |
 | Theming | 4/4 | One token system across three surfaces, parity gated in both directions, `@theme` mapping gated, orphan and literal-colour detection, `color-scheme` published |
 | Responsive | 4/4 | 0 sub-44px targets on touch viewports, no horizontal scroll at any width, widget clamped and measured at 320×480 / 568×320 / 375×812 |
 
@@ -66,25 +66,22 @@ whose boundary is asserted in both directions and canaried.
 
 ## Open — real, and worth doing
 
-### P1
+**Nothing.** Every open P1–P3 either shipped or moved to Deliberate with a
+measured rationale (2026-07-27):
 
-- **The widget's `.tip` sits `position: fixed` over host content.** Dismissible
-  (Escape), hoverable and persistent are all implemented, so SC 1.4.13 is met —
-  but the "does not obscure" exception still does not apply, and no gate
-  measures what it covers on a host page.
-
-### P2
-
-- **Widget bundle is 55.8KB raw, 18.5KB gzipped** (measured on the wire, not
-  via `fetch`, which decompresses transparently). The hub serves it
-  pre-compressed with an ETag, so a repeat visit is a 304 — but it is 5.6× the
-  original sketch and every host page pays the first load.
-
-### P3
-
-- Repro steps are still hardcoded `repro_steps: []` in the widget (see B1).
-- `design/components.css` is published but has no in-repo consumer — it exists
-  for external adopters only. Worth stating in its header.
+- **`.tip` (was P1)** → the tip is now **first-run only**: a filed report or an
+  Escape aimed at the visible tip retires it permanently via localStorage.
+  Gated in both directions (first visit must reveal it; the flag must survive a
+  reload) and canaried.
+- **B1 repro steps (was P3)** → shipped. A labelled textarea, one step per
+  line; user numbering is stripped because every downstream renderer numbers
+  the list itself. Asserted end to end, including in the agent-facing markdown.
+- **B2 route journey** → shipped. Routes only — a trail, not surveillance —
+  recorded through the same debounced guard as pin refresh, popstate included
+  (back-navigation previously bypassed it). Rides in `extra.journey`, rendered
+  as `## Route journey` in `itemMarkdown`, asserted end to end.
+- **components.css header (was P3)** → stated in the file.
+- **Widget bundle (was P2)** → moved to Deliberate below.
 
 ---
 
@@ -106,14 +103,18 @@ These recur in audits. Each is a decision with a rationale:
   claiming it.
 - **The widget is vanilla JS in a shadow DOM.** It is injected into arbitrary
   pages; React is not available to it.
+- **Widget bundle stays unminified: 57,183 B raw, 18,945 B gzipped on the
+  wire.** Within normal snippet range once compressed, a 304 on every repeat
+  visit, and the served file being the readable source is worth more to an
+  auditing adopter than the ~10KB a minifier would save. Revisit if adopter
+  feedback names first-load cost.
 
 ---
 
 ## Carried over (predates the audits)
 
-- **B1 — structured repro steps.** `widget/loopback-widget.js` hardcodes
-  `repro_steps: []`; the field is captured nowhere. ~20 lines.
-- **B2 — auto-derived journey** from the captured route/console trail. ~40 lines.
+- **B1 — structured repro steps.** Shipped 2026-07-27 (see above).
+- **B2 — auto-derived journey.** Shipped 2026-07-27 (see above).
 - **B3 — multi-pin grouping.** Deferred.
 - **B4 — session recording.** Won't build; borrow PostHog (doc 02).
 - Housekeeping: `claude mcp remove loopback -s project` (duplicate scope).

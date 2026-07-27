@@ -135,6 +135,19 @@ async function main() {
   await page.waitForTimeout(600);
   console.log("✅ contact form submitted (backend returned 500 behind the scenes)");
 
+  // A short route journey BEFORE reporting: pushState away and back, the way a
+  // real user wanders before hitting the broken thing. The widget must record
+  // it — routes only — and attach it to the report.
+  // Separate tasks, the way real navigation happens — the widget's handler is
+  // deferred, so two pushStates in ONE task collapse to a single unchanged
+  // sample. The return leg uses history.back() so the popstate path (which
+  // used to bypass the journey entirely) is the thing actually exercised.
+  log("simulate a route journey");
+  await page.evaluate(() => history.pushState({}, "", "/pricing"));
+  await page.waitForTimeout(120);
+  await page.evaluate(() => history.back());
+  await page.waitForTimeout(350);
+
   // 2b. Human: pin feedback on the submit button
   log("open widget panel");
   await page.click("#loopback-widget-host .fab");
@@ -152,9 +165,23 @@ async function main() {
   await page.fill(`${formSel} .f-title`, "Contact form says try again");
   await page.fill(`${formSel} .f-got`, "Clicked send, got 'Something went wrong'.");
   await page.fill(`${formSel} .f-want`, "Message should send and confirm.");
+  // Typed with the user's own numbering — the widget must strip it, because
+  // every downstream renderer numbers the list itself.
+  await page.fill(`${formSel} .f-repro`, "1. Open the contact page\n2) Type a message\nClick send");
   await page.click(`${formSel} .send`);
   await page.waitForSelector("#loopback-widget-host .toast");
   console.log("✅ pinned feedback on the form (failed request auto-attached)");
+
+  // Filing once is the strongest "I know what this is" — the onboarding tip
+  // must retire permanently, not just fade for the session.
+  const tipAfterFile = await page.evaluate(() => {
+    const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+    let flag = null;
+    try { flag = localStorage.getItem("lb-tip-done"); } catch { /* private */ }
+    return { flag, display: getComputedStyle(sr.querySelector(".tip")).display };
+  });
+  assert(tipAfterFile.flag === "1", "filing a report persists the tip-retired flag");
+  assert(tipAfterFile.display === "none", `retired tip is display:none, not merely faded (got ${tipAfterFile.display})`);
 
   // 2c. Human: pin the AI answer (LLM context capture)
   await page.click("#loopback-widget-host .fab");
@@ -200,6 +227,20 @@ async function main() {
     "LLM run_id captured from data-loopback-context",
   );
   assert(aiItem.type === "usage", "AI pin auto-typed usage");
+  assert(
+    JSON.stringify(contactItem.repro_steps) ===
+      JSON.stringify(["Open the contact page", "Type a message", "Click send"]),
+    `repro steps captured with user numbering stripped (got ${JSON.stringify(contactItem.repro_steps)})`,
+  );
+  const journeyRoutes = (contactItem.extra.journey ?? []).map((j) => j.route);
+  assert(
+    JSON.stringify(journeyRoutes) === JSON.stringify(["/", "/pricing", "/"]),
+    `route journey recorded, back-navigation included (got ${JSON.stringify(journeyRoutes)})`,
+  );
+  assert(
+    (contactItem.extra.journey ?? []).every((j) => typeof j.at === "string" && j.at.includes("T")),
+    "journey entries carry timestamps",
+  );
   console.log("✅ bus items carry full-stack context (500 body + LLM run metadata)");
 
   // 4. Agent role over MCP/HTTP: claim → link → fix → verify
@@ -560,6 +601,14 @@ async function main() {
   // the exact string an agent receives from loopback_get_feedback by default.
   const { itemMarkdown } = await import(pathToFileURL(join(ROOT, "dist", "format.js")).href);
   const prose = itemMarkdown(withAtt);
+  assert(
+    prose.includes("Route journey") && prose.includes("/pricing"),
+    "the journey reaches the agent-facing rendering",
+  );
+  assert(
+    prose.includes("Repro steps") && prose.includes("Type a message"),
+    "typed repro steps reach the agent-facing rendering",
+  );
   for (const needle of [asset.name, asset.target_path, asset.path, "ASSET"]) {
     assert(
       prose.includes(needle),

@@ -6,7 +6,8 @@ Loopback is the interactive feedback layer between real product usage and your
 coding agents: one script tag makes any web app commentable
 (Vercel-toolbar-style toolbar, element-anchored pins), every pin auto-captures
 the *functional* context — failing requests **with response bodies**, console
-trail, LLM run metadata — and lands in one project-tagged queue that **Claude
+trail, the route journey that led there, LLM run metadata, typed repro steps —
+and lands in one project-tagged queue that **Claude
 Code, Codex, and Gemini CLI** all work over MCP. When an agent's fix is
 verified, the pin turns green on the page, live.
 
@@ -223,7 +224,7 @@ Full matrix, native snippets (Swift/Kotlin/C#/shell), and the honest edges:
 | Deployed public sites | ✖ Chrome 142+ blocks a public page from reaching `127.0.0.1`. Use the Sentry/PostHog rails instead. |
 | Native macOS/Windows apps · CLIs · CI/cron · agents/automations | ✅ `POST /ingest` or MCP (~10-line debug-menu snippet; status via `/queue`) |
 | iOS/Android simulators & emulators | ✅ shared loopback / `adb reverse` |
-| iOS/Android physical devices on LAN | ✅ `--host 0.0.0.0` (opt-in, **no auth** — trusted networks only) |
+| iOS/Android physical devices on LAN | ✅ `--host 0.0.0.0` (opt-in; prints a bearer token — trusted networks only) |
 | iOS/Android production | ✅ via Sentry/PostHog rails (their SDKs capture; bridge to the queue) |
 
 ## The widget

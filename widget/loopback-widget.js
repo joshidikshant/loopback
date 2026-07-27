@@ -1,5 +1,5 @@
 /*!
- * Loopback capture widget v0.9.0 (MIT)
+ * Loopback capture widget v0.10.0 (MIT)
  *
  * Interaction lineage (all adapted, with thanks):
  * - Vercel Toolbar — floating-toolbar workflow + resolve lifecycle (pattern).
@@ -371,6 +371,7 @@
     // Suppress it when the panel is open or we're mid-pin: the label no longer
     // says "Loopback", so explaining Loopback would be noise.
     ".panel.open~.tip,.fab.pinmode~.tip,.tip.dismissed{opacity:0!important;transform:translateY(4px)!important;pointer-events:none!important}" +
+    ".tip.done{display:none!important}" +
     ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:min(290px,calc(100vw - 36px));max-height:calc(100vh - 76px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
     ".panel.open{display:block}" +
     ".panel h3{margin:0 0 8px;font-size:13px;font-weight:600}" +
@@ -488,10 +489,24 @@
   var tip = mk("div", "tip", TAGLINE);
   tip.setAttribute("role", "tooltip");
   tip.id = "lb-tip";
+  // First-run only. The tip is onboarding — after the reporter has either
+  // filed once or explicitly dismissed it, it has no job left, and it sits
+  // position:fixed OVER host content, so "harmless" is not the default.
+  // localStorage is scoped to the host origin, which is exactly the scope the
+  // decision was made in. aria-describedby stays wired: hidden tooltip text is
+  // still valid as an accessible description.
+  var TIP_KEY = "lb-tip-done";
+  function tipDone() {
+    try { localStorage.setItem(TIP_KEY, "1"); } catch (e) { /* private mode */ }
+    tip.classList.add("done");
+  }
+  try {
+    if (localStorage.getItem(TIP_KEY)) tip.classList.add("done");
+  } catch (e) { /* private mode: shows each visit, dismissal still works */ }
   // Dismissable (SC 1.4.13): Escape hides it and focus stays exactly where it
-  // was. Re-arms as soon as the pointer or focus leaves the FAB.
+  // was — and counts as "understood", permanently.
   document.addEventListener("keydown", function (ev) {
-    if (ev.key === "Escape") tip.classList.add("dismissed");
+    if (ev.key === "Escape" && !tip.classList.contains("done")) tipDone();
   });
   fab.addEventListener("mouseleave", function () {
     tip.classList.remove("dismissed");
@@ -802,6 +817,8 @@
     titleInput.placeholder = "What is wrong here?";
     field("What happened", mk("textarea", "f-got"));
     field("What you expected", mk("textarea", "f-want"));
+    var reproInput = field("Repro steps — one per line (optional)", mk("textarea", "f-repro"));
+    reproInput.placeholder = "Open the cart\nApply a coupon\nClick checkout";
 
     // Same id/htmlFor pairing inside the two-up row.
     function cell(labelText, node) {
@@ -894,6 +911,7 @@
         element_html: (el.outerHTML || "").slice(0, 800),
       };
       if (ctx) extra.context = ctx;
+      if (journeyBuf.length > 1) extra.journey = journeyBuf.slice(-10);
       var payload = {
         project: PROJECT,
         type: form.querySelector(".f-type").value,
@@ -910,7 +928,17 @@
           var out = { url: n.url, method: n.method, status: n.status, ms: n.ms };
           return out;
         }),
-        repro_steps: [],
+        // One step per line. Leading "1." / "2)" numbering is stripped because
+        // every renderer downstream numbers the list itself — keeping the
+        // user's own numbers produced "1. 1. Open the cart".
+        repro_steps: form
+          .querySelector(".f-repro")
+          .value.split("\n")
+          .map(function (line) {
+            return line.replace(/^\s*\d+[.)]\s*/, "").trim();
+          })
+          .filter(Boolean)
+          .slice(0, 20),
         extra: extra,
       };
       // response bodies of failures ride along in extra (schema keeps network entries lean)
@@ -948,6 +976,9 @@
         .then(function (j) {
           if (j && j.ok) {
             closeForm();
+            // A filed report is the strongest "I know what this is" signal —
+            // the onboarding tip retires permanently.
+            tipDone();
             toast("Filed " + j.id + " — an agent will pick it up");
             refreshPins();
             return;
@@ -978,7 +1009,7 @@
 
   // Page API for tests and agents (window.__domReviewAPI pattern, DOM-Review).
   window.__loopback = {
-    version: "0.9.0",
+    version: "0.10.0",
     project: PROJECT,
     endpoint: ENDPOINT,
     pins: [],
@@ -1267,9 +1298,15 @@
   // cannot change what they render.
   var lastPath = location.pathname;
   var routeTimer = null;
+  // The journey: where the reporter had been before filing. Routes only — no
+  // clicks, no keys — so it stays a trail, not surveillance. Seeded with the
+  // route the page loaded on; capped so a long session cannot grow the payload.
+  var journeyBuf = [{ route: location.pathname, at: new Date().toISOString() }];
   function onRouteChange() {
     if (location.pathname === lastPath) return;
     lastPath = location.pathname;
+    journeyBuf.push({ route: location.pathname, at: new Date().toISOString() });
+    if (journeyBuf.length > 15) journeyBuf.shift();
     clearTimeout(routeTimer);
     routeTimer = setTimeout(refreshPins, 120);
   }
@@ -1283,6 +1320,8 @@
     };
   });
   window.addEventListener("popstate", function () {
-    setTimeout(refreshPins, 50);
+    // Through the same guard as pushState: records the journey entry, skips
+    // same-path noise, and shares the debounce instead of a bare refresh.
+    setTimeout(onRouteChange, 0);
   });
 })();

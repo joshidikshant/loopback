@@ -599,7 +599,10 @@ async function main() {
         fabExpanded: fab.hasAttribute("aria-expanded"),
       };
     });
-    check(widget.allLabelled && widget.controlCount === 5,
+    // 6 controls: title, what-happened, expected, repro steps, type, severity.
+    // The exact count is asserted, not a floor — a scan that reached an empty
+    // or partial form would otherwise report "all 2 labelled" as a pass.
+    check(widget.allLabelled && widget.controlCount === 6,
       `widget: all ${widget.controlCount} form controls have a real <label for>`);
     check(widget.openedByKeyboard, "widget: pin mode is operable by keyboard alone");
     check(widget.formRole === "dialog" && widget.formNamed, "widget: capture form is a named dialog");
@@ -710,6 +713,42 @@ async function main() {
       });
     }
     await wpage.setViewportSize({ width: 1280, height: 800 });
+
+    // ---------- the onboarding tip retires, permanently ----------
+    // It sits position:fixed OVER host content, so "shown on every visit" was
+    // the P1. First visit: revealed on hover/focus. After a filed report or an
+    // explicit dismissal, a stored flag must keep it away on every future load.
+    // Both directions, because a tip that never shows fails onboarding and a
+    // flag that is never honoured fails the host page. (No KILL_MOTION here —
+    // document-level styles do not pierce the shadow root; the .12s transition
+    // is simply waited out.)
+    await wpage.evaluate(() => localStorage.removeItem("lb-tip-done"));
+    await wpage.reload();
+    await wpage.waitForSelector("#loopback-widget-host", { state: "attached" });
+    await wpage.hover("#loopback-widget-host .fab");
+    await wpage.waitForTimeout(350);
+    const tipFresh = await wpage.evaluate(() => {
+      const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+      const cs = getComputedStyle(sr.querySelector(".tip"));
+      return { opacity: cs.opacity, display: cs.display };
+    });
+    check(
+      tipFresh.display !== "none" && tipFresh.opacity === "1",
+      `tip: first visit reveals it on hover (display ${tipFresh.display}, opacity ${tipFresh.opacity})`,
+    );
+    await wpage.evaluate(() => localStorage.setItem("lb-tip-done", "1"));
+    await wpage.reload();
+    await wpage.waitForSelector("#loopback-widget-host", { state: "attached" });
+    await wpage.hover("#loopback-widget-host .fab");
+    await wpage.waitForTimeout(350);
+    const tipRetired = await wpage.evaluate(() => {
+      const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+      return getComputedStyle(sr.querySelector(".tip")).display;
+    });
+    check(
+      tipRetired === "none",
+      `tip: the retired flag is honoured across loads, hover included (display ${tipRetired})`,
+    );
 
     // ---------- the delete-confirm dialog ----------
     // No gate ever opened it. It is position:fixed, so its overflow never

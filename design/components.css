@@ -10,6 +10,13 @@
  * consuming project that already defines the shadcn variables gets these
  * components in its own palette for free.
  *
+ * No file in THIS repo consumes it, deliberately: the dashboard maps the same
+ * tokens through Tailwind's @theme, and the widget inlines them for the shadow
+ * DOM. This layer exists for external adopters via the registry
+ * (@loopback/loopback-components), and the registry-gate + a11y-gate keep it
+ * honest — parity with tokens.css, contrast on a rendered recipe, and the
+ * reduced-motion still state are all measured on every CI run.
+ *
  * Classes are `lb-` prefixed: this stylesheet is designed to be dropped into
  * pages that may already have their own `.btn`/`.badge`/`.card`.
  */

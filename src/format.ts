@@ -76,6 +76,11 @@ export function itemMarkdown(item: FeedbackItem): string {
       if (f.body) lines.push("", "```", f.body, "```");
     }
   }
+  const journey = (item.extra as { journey?: { route?: string; at?: string }[] }).journey;
+  if (Array.isArray(journey) && journey.length) {
+    lines.push(``, `## Route journey (how the reporter got here)`, ``);
+    for (const j of journey) lines.push(`- ${j.at ?? "?"} — \`${j.route ?? "?"}\``);
+  }
   const context = (item.extra as { context?: Record<string, unknown> }).context;
   if (context) {
     lines.push(

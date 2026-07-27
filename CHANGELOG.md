@@ -5,6 +5,38 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Added — the widget captures how, not just what (widget v0.10.0)
+- **Repro steps.** A labelled "one per line" textarea in the capture form;
+  leading `1.` / `2)` numbering is stripped because every downstream renderer
+  numbers the list itself. The field existed in the store, MCP and dashboard
+  from day one and was captured nowhere.
+- **Route journey.** The widget records the routes visited before the report
+  (routes only — a trail, not surveillance; capped at 15) and attaches them as
+  `extra.journey`. `loopback_get_feedback` renders it as `## Route journey` so
+  agents see the path, not just the crash site. Back/forward navigation now
+  flows through the same debounced guard as pin refresh — popstate previously
+  bypassed both.
+- **The onboarding tip retires.** It sits `position:fixed` over host content,
+  so it is now first-run only: a filed report, or an Escape aimed at the
+  visible tip, retires it permanently (per host origin). Session dismissal and
+  SC 1.4.13 behaviour are unchanged.
+
+### Added — a token for non-loopback binds
+`--host 0.0.0.0` used to put every queue and every mutation on the LAN behind
+a startup warning. A non-loopback bind now generates a bearer token (or takes
+`LOOPBACK_TOKEN`), printed as a `?token=` URL that is swapped into an HttpOnly
+cookie on first use and stripped from the URL. `POST /ingest`, `/widget.js`
+and the pins projection stay open by design — the widget has nowhere to keep a
+secret; everything else, `/mcp` included, refuses with 401. Loopback binds are
+unchanged and need no token.
+
+### Added — the verification is itself verified
+`npm run canary` (in CI) applies one surgical mutation per gate to the thing
+that gate protects and requires the gate to FAIL — 13 checks. Nine separate
+times across twenty audit passes, a gate had reported green on something it
+could not see; this makes that class of defect a CI failure instead of an
+audit finding. It caught one real regression on its first run.
+
 ### Fixed — status badges had a real contrast bug in both themes
 `design/tokens.css` has always shipped a paired `--lb-*-foreground` for every
 status, and inverts the pairing between themes: light mode puts white text on a
