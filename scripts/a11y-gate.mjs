@@ -213,11 +213,13 @@ async function main() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        project: "a11y", type: "ui",
+        project: "acme-demo", type: "ui",
         severity: SEVERITIES[i % SEVERITIES.length],
         title: `Seed ${STATUSES[i]} / ${SEVERITIES[i % SEVERITIES.length]}`,
         body: "Rendered so every status and severity pair is measured.",
-        dom_selector: "h1", route: "/index.html", source: "widget", reporter: "human",
+        // route must match the demo page the widget actually loads on, or the
+        // widget queries a route with no items and renders no pins at all.
+        dom_selector: "h1", route: "/", source: "widget", reporter: "human",
       }),
     });
     seeded.push((await res.json()).id);
@@ -383,6 +385,31 @@ async function main() {
       `detail: every control has an accessible name${item.unnamed.length ? ` — ${JSON.stringify(item.unnamed)}` : ""}`);
     check(item.title.includes(detail), "detail: route change set the document title");
 
+    // ---------- SC 1.4.4: 200% text-only zoom ----------
+    // The gate only ever varied title and body, never the root font size — so a
+    // header that could not shrink pushed the search input 81px off the LEFT
+    // edge at 375px, with negative overflow and no scrollbar to recover it.
+    for (const route of ["/queue", `/queue/${detail}`]) {
+      await page.goto(`${LB}${route}`);
+      await page.waitForSelector("h1");
+      await page.evaluate(() => (document.documentElement.style.fontSize = "32px"));
+      await page.waitForTimeout(150);
+      const zoomed = await page.evaluate(() => {
+        const de = document.documentElement;
+        const search = document.querySelector('input[aria-label="Search feedback"]');
+        return {
+          overflow: de.scrollWidth > de.clientWidth ? { s: de.scrollWidth, c: de.clientWidth } : null,
+          offLeft: search ? Math.round(search.getBoundingClientRect().left) < 0 : false,
+        };
+      });
+      check(!zoomed.overflow && !zoomed.offLeft,
+        `${route} at 375px and 200% text zoom: nothing off-screen (SC 1.4.4)${
+          zoomed.overflow ? ` — ${JSON.stringify(zoomed.overflow)}` : zoomed.offLeft ? " — search pushed off the left edge" : ""
+        }`);
+      await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+
     // ---------- widget, on a host page ----------
     const wpage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await wpage.goto(`${DEMO}/`);
@@ -426,6 +453,25 @@ async function main() {
     // The shadow-piercing scan exists for THIS. It was only ever run on the
     // dashboard, which has no shadow roots, so the widget's own colours and
     // target sizes had never been measured by anything.
+    // Hydrate pins and OPEN the panel before scanning. The keyboard-pin probe
+    // above closes the panel and leaves no pins rendered, so the scan that
+    // follows had nothing of the widget to look at.
+    await wpage.evaluate(() => window.__loopback.refresh());
+    await wpage.waitForFunction(
+      () => document.querySelector("#loopback-widget-host")?.shadowRoot?.querySelectorAll(".pin").length > 0,
+      { timeout: 8000 },
+    );
+    await wpage.evaluate(() => {
+      const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+      sr.querySelector(".panel").classList.add("open");
+    });
+    const widgetParts = await wpage.evaluate(() => {
+      const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+      return { pins: sr.querySelectorAll(".pin").length, badges: sr.querySelectorAll(".badge").length };
+    });
+    check(widgetParts.pins > 0 && widgetParts.badges > 0,
+      `widget: pins and status badges are actually rendered before scanning (${widgetParts.pins} pins, ${widgetParts.badges} badges)`);
+
     await wpage.evaluate(KILL_MOTION);
     // The widget owns its theme via prefers-color-scheme (deliberately — it must
     // stay legible on any host page), so MEASURE's .dark class toggle does
@@ -440,7 +486,12 @@ async function main() {
       // has items for this route. A scan that reached almost nothing proves
       // nothing, and that is exactly how this assertion passed while measuring
       // a foreign database.
-      check(scanned >= 20, `widget (${scheme}): scan reached the widget UI (${scanned} elements)`);
+      const inShadow = await wpage.evaluate(() => {
+        const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+        return sr.querySelectorAll("*").length;
+      });
+      check(inShadow >= 20,
+        `widget (${scheme}): scan reached inside the SHADOW ROOT (${inShadow} of ${scanned} elements)`);
       check(m.contrastLight.length === 0,
         `widget (${scheme}): no contrast failures${m.contrastLight.length ? ` — ${JSON.stringify(m.contrastLight)}` : ""}`);
       check(m.smallTargets.length === 0,

@@ -5,6 +5,7 @@ import {
   statusClass,
   severityClass,
   severityWeight,
+  safeHref,
   SEVERITIES,
   STATUSES,
   TYPES,
@@ -187,12 +188,14 @@ export function ItemDetail({
     // which drops a keyboard user out of the form mid-task. Remember where they
     // were and put them back once the control is enabled again.
     const focused = document.activeElement as HTMLElement | null;
-    // Where to land if the original control is gone or still disabled. Without
-    // it the restore silently no-ops on the two commonest paths: the comment
-    // button stays disabled once the textarea is cleared, and the save button
-    // is unmounted by leaving edit mode — so only the status path ever
-    // recovered. Falling back to the region keeps the user in context.
-    const fallback = focused?.closest("[data-slot=card], header") as HTMLElement | null;
+    // Two fallbacks, because closest() alone is not enough:
+    //   - SAVE unmounts its own Card inside fn(), so a captured element is gone.
+    //   - STATUS is a Radix Select whose focused item is PORTALED to <body>, so
+    //     closest("[data-slot=card]") is null before we even start.
+    // A stable id resolved AFTER the write always exists, so record where to
+    // land rather than which node to return to.
+    const closestCard = focused?.closest("[data-slot=card], header") as HTMLElement | null;
+    const anchorId = focused?.closest("[data-lb-region]")?.getAttribute("data-lb-region") ?? null;
     setBusy(true);
     try {
       await fn();
@@ -205,9 +208,17 @@ export function ItemDetail({
           focused && document.contains(focused) && !(focused as HTMLButtonElement).disabled;
         if (stillUsable) {
           focused.focus();
-        } else if (fallback && document.contains(fallback)) {
-          fallback.setAttribute("tabindex", "-1");
-          fallback.focus({ preventScroll: true });
+          return;
+        }
+        // Resolve the landing zone NOW, after the re-render.
+        const byId = anchorId
+          ? (document.querySelector(`[data-lb-region="${anchorId}"]`) as HTMLElement | null)
+          : null;
+        const target =
+          byId ?? (closestCard && document.contains(closestCard) ? closestCard : null);
+        if (target) {
+          target.setAttribute("tabindex", "-1");
+          target.focus({ preventScroll: true });
         }
       });
     }
@@ -280,7 +291,7 @@ export function ItemDetail({
       <h1 className="text-xl font-semibold tracking-tight break-all">{item.title}</h1>
 
       {editing ? (
-        <Card className="grid gap-3 p-4">
+        <Card data-lb-region="edit" className="grid gap-3 p-4">
           <Label htmlFor="lb-edit-title" className="sr-only">
             Title
           </Label>
@@ -347,10 +358,10 @@ export function ItemDetail({
           <span className="text-sm text-muted-foreground">{item.type}</span>
         </Section>
         <Section label="Source / reporter">
-          <span className="text-sm">{item.source} · {item.reporter}</span>
+          <span className="text-sm break-all">{item.source} · {item.reporter}</span>
         </Section>
         <Section label="Assignee">
-          <span className="text-sm">{item.assignee_agent ?? "unclaimed"}</span>
+          <span className="text-sm break-all">{item.assignee_agent ?? "unclaimed"}</span>
         </Section>
         <Section label="Route">
           <code className="font-mono text-xs break-all">{item.route ?? "—"}</code>
@@ -413,10 +424,10 @@ export function ItemDetail({
                 .map(([k, v]) => (
                   <div key={k}>
                     <span className="text-muted-foreground">{k}:</span>{" "}
-                    {k === "pr_url" ? (
+                    {k === "pr_url" && safeHref(String(v)) ? (
                       <a
                         className="inline-block min-h-6 underline"
-                        href={String(v)}
+                        href={safeHref(String(v)) ?? undefined}
                         target="_blank"
                         rel="noreferrer noopener"
                       >
@@ -439,14 +450,19 @@ export function ItemDetail({
             agent's view of an item was strictly richer than the human's. */}
         {item.url && (
           <Section region label="Reported from">
-            <a
-              className="inline-block min-h-6 text-sm break-all underline"
-              href={item.url}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              {item.url}
-            </a>
+            {safeHref(item.url) ? (
+              <a
+                className="inline-block min-h-6 text-sm break-all underline"
+                href={safeHref(item.url) ?? undefined}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {item.url}
+              </a>
+            ) : (
+              // Not http(s) — show it, never link it.
+              <span className="text-sm break-all">{item.url}</span>
+            )}
           </Section>
         )}
         {item.network.length > 0 && (
@@ -493,14 +509,18 @@ export function ItemDetail({
             </AttachmentMedia>
             <AttachmentContent>
               <AttachmentTitle>
-                <a
-                  className="inline-block min-h-6 break-all underline"
-                  href={a.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  {a.name}
-                </a>
+                {safeHref(a.url) ? (
+                  <a
+                    className="inline-block min-h-6 break-all underline"
+                    href={safeHref(a.url) ?? undefined}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    {a.name}
+                  </a>
+                ) : (
+                  <span className="break-all">{a.name}</span>
+                )}
               </AttachmentTitle>
               <AttachmentDescription>
                 {/* `asset` is the consequential one — it gets copied into the
@@ -607,7 +627,7 @@ export function ItemDetail({
                 several unrelated callouts. */}
             {item.comments.map((c) => (
               <div key={c.id} className="min-w-0 py-2 not-last:border-b">
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs break-all text-muted-foreground">
                   {c.author} · {c.created_at}
                 </div>
                 <div className="mt-0.5 whitespace-pre-wrap break-all text-sm">{c.body}</div>
@@ -659,7 +679,7 @@ export function ItemDetail({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="grid gap-2 p-4">
+        <Card data-lb-region="comment" className="grid gap-2 p-4">
           <Label htmlFor="lb-comment" className={LABEL}>
             Add a comment
           </Label>
@@ -690,7 +710,7 @@ export function ItemDetail({
             commits it. Reading order was the bug: pick a status first and the
             note is still empty — and store.updateStatus only writes a trail
             entry `if (note)`, so the change landed with no trail at all. */}
-        <Card className="grid gap-2 p-4">
+        <Card data-lb-region="status" className="grid gap-2 p-4">
           <Label htmlFor="lb-status-note" className={LABEL}>
             Change status
           </Label>

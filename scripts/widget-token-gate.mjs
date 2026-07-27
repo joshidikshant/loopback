@@ -169,6 +169,15 @@ for (const [theme, source] of [
 // which was survivable while all six status colours were dark and broke the
 // moment --lb-fixed became a pale green. Nothing was checking this file.
 const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-8");
+
+// The widget's stylesheet is the OTHER hand-written CSS surface, and it was
+// scanned by nothing: reintroducing the pale-green-pin bug there passed every
+// gate. Its rules live inside JS string concatenation, so pull the CSS out of
+// the quoted fragments first.
+const widgetCss = [...widgetJs.matchAll(/"([^"\\]*(?:\\.[^"\\]*)*)"/g)]
+  .map((m) => m[1])
+  .filter((frag) => /[:{}]/.test(frag))
+  .join("\n");
 // Any declaration, not just color/background: a literal hiding in a border,
 // outline, box-shadow or color-mix() is the same drift.
 const NAMED = "white|black|red|green|blue|gray|grey|silver|maroon|olive|lime|aqua|teal|navy|fuchsia|purple|orange|yellow|pink|brown|cyan|magenta|gold|beige|ivory|coral|salmon|khaki|indigo|violet|tan|azure";
@@ -209,6 +218,18 @@ flattened.forEach(([line, lineNo]) => {
     hardcoded.push([null, m[1], m[2].trim(), n + 1]);
   }
 });
+// Same scan over the widget's inlined stylesheet. Its own token DECLARATIONS
+// are literals by necessity (it cannot @import), so only rules that CONSUME a
+// colour are checked — declarations are matched by the parity map above.
+for (const [, prop, value] of widgetCss.matchAll(
+  /(?:^|[;{])\s*(color|background|background-color|border-color|outline-color|fill|stroke)\s*:\s*([^;}]+)/g,
+)) {
+  if (/^\s*var\(/.test(value)) continue;
+  if (COLOUR_LITERAL.test(value)) {
+    fail(`widget/loopback-widget.js hardcodes ${prop}: ${value.trim()} — use a token`);
+  }
+}
+
 if (hardcoded.length === 0) {
   pass("design/components.css uses tokens throughout — no literal colours");
 } else {

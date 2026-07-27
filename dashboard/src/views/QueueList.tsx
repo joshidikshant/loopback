@@ -4,6 +4,7 @@ import {
   statusClass,
   severityClass,
   severityWeight,
+  safeHref,
   STATUSES,
   type Filters,
   type Item,
@@ -152,7 +153,7 @@ export function QueueList({
 
   return (
     <>
-      <header className="flex flex-wrap items-baseline gap-3">
+      <header className="flex min-w-0 flex-wrap items-baseline gap-3">
         <h1 className="text-xl font-semibold tracking-tight">
           <span className="break-all">
             Loopback queue{filters.project ? ` — ${filters.project}` : ""}
@@ -172,13 +173,13 @@ export function QueueList({
         </span>
         {/* min-w-0 lets this shrink instead of pushing the page wider than the
             viewport; w-56 alone made the flex item refuse to give ground. */}
-        <div className="ml-auto flex w-full min-w-0 flex-1 basis-full items-center justify-end gap-2 sm:w-auto sm:basis-auto">
+        <div className="ml-auto flex w-full min-w-0 flex-1 basis-full items-center justify-end gap-2 sm:w-auto sm:min-w-56 sm:basis-auto">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title, body, id…"
             aria-label="Search feedback"
-            className="h-11 w-full min-w-40 sm:w-56"
+            className="h-11 w-full min-w-0 sm:w-56"
           />
           {themeToggle}
         </div>
@@ -483,9 +484,9 @@ export function QueueList({
                   )}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {i.links.pr_url ? (
+                  {safeHref(i.links.pr_url) ? (
                     <a
-                      href={i.links.pr_url}
+                      href={safeHref(i.links.pr_url) ?? undefined}
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noreferrer noopener"

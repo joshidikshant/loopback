@@ -300,7 +300,9 @@ reachable from **every page open in your browser**. So:
 - Everything that reads full context or changes state, **including `/mcp`**,
   requires an origin pinned at startup from the bind config. Local tooling that
   sends no `Origin` (curl, MCP clients) still works.
-- URLs on items are rendered as links only when they are `http(s)`.
+- URLs on items are rendered as links only when they are `http(s)` —
+  enforced by `safeHref()` in the dashboard, which resolves the URL and reads
+  its protocol. `data:`, `vbscript:` and `file:` render as plain text.
 
 There is still **no authentication**: anyone who can reach the port with a
 non-browser client can read and write everything. `--host`/`LOOPBACK_HOST`

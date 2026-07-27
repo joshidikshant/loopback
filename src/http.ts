@@ -139,6 +139,35 @@ export function createHttpApp(
 
 
   const app = express();
+
+  /**
+   * gzip JSON responses too, not just the dashboard bundle.
+   *
+   * `GET /feedback?limit=1000` measured 16,605,955 bytes uncompressed against
+   * 114,610 gzipped — 145x. Items carry console tails, network entries and up
+   * to 2KB of captured response body each, so the payload is highly
+   * compressible text, and the widget polls this endpoint every 10 seconds from
+   * every open page. The compression already existed twelve lines below, scoped
+   * to /dashboard/* alone.
+   */
+  app.use((req, res, next) => {
+    if (!/\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""))) return next();
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      const raw = Buffer.from(JSON.stringify(body));
+      // Below ~1KB the header and CPU cost outweigh the saving.
+      if (raw.length < 1024) return originalJson(body);
+      const packed = gzipSync(raw);
+      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Vary", "Accept-Encoding");
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Length", String(packed.length));
+      res.end(packed);
+      return res;
+    };
+    next();
+  });
+
   app.use(express.json({ limit: "2mb" }));
   // Triage actions post as plain HTML forms so they work without JavaScript.
   app.use(express.urlencoded({ extended: false, limit: "1mb" }));

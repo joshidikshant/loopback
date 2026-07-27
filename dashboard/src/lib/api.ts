@@ -222,3 +222,29 @@ export const severityWeight: Record<Severity, string> = {
   p2: "font-medium",
   p3: "font-normal",
 };
+
+/**
+ * Only http(s) URLs become links.
+ *
+ * README documents this as a security property, and no shipped code
+ * implemented it — the check existed server-side and was lost when the SPA
+ * replaced the server-rendered queue pages. Verified in a browser: `data:`,
+ * `vbscript:` and `file:` all rendered as live `target="_blank"` links, and
+ * only `javascript:` was neutralised — by React, not by this repo.
+ *
+ * These strings arrive from a widget on someone else's page, so they are
+ * attacker-influenced by construction.
+ *
+ * Returns null when the URL must NOT be a link; render it as plain text.
+ */
+export function safeHref(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  try {
+    // Resolve relative to the current origin so protocol-relative and relative
+    // forms are normalised before the scheme is read.
+    const u = new URL(raw, window.location.origin);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
