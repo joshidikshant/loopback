@@ -108,6 +108,23 @@ const PAIRS = [
 // a literal, leaving the vanilla .lb-pin recipe under the SC 2.5.8 floor.
 // These are theme-INVARIANT: tokens.css declares them once in :root, so they
 // are compared against the light block only.
+// The widget hardcodes the derived radius multipliers rather than consuming the
+// tokens (it inlines `calc(var(--lb-radius) * 0.8)`), so a change to the scale
+// in tokens.css could not reach it. Compare the multipliers themselves.
+const RADIUS_STEPS = [
+  ["RADIUS_MD", "--radius-md", 0.8],
+  ["RADIUS_SM", "--radius-sm", 0.6],
+];
+for (const [name, token, multiplier] of RADIUS_STEPS) {
+  const inWidget = new RegExp(`var ${name} = "calc\\(var\\(--lb-radius\\) \\* ([\\d.]+)\\)"`).exec(widgetJs);
+  const inTokens = new RegExp(`${token}:\\s*calc\\(var\\(--radius\\) \\* ([\\d.]+)\\)`).exec(tokensCss);
+  if (!inWidget || !inTokens) {
+    fail(`could not compare the ${token} multiplier (widget=${!!inWidget} tokens=${!!inTokens})`);
+  } else if (inWidget[1] !== inTokens[1] || Number(inTokens[1]) !== multiplier) {
+    fail(`${token}: widget derives * ${inWidget[1]}, tokens.css says * ${inTokens[1]}`);
+  }
+}
+
 const INVARIANT_PAIRS = [
   ["--lb-pin-size", "--lb-pin-size"],
   ["--lb-pin-radius", "--lb-pin-radius"],
@@ -253,7 +270,7 @@ flattened.forEach(([line, lineNo]) => {
 // EVERY property, not an allowlist. The widget's real CSS carries colour inside
 // `border:`, `outline:` and `box-shadow:` shorthands, and all three were exempt.
 const WIDGET_TOKEN_DECL = /^--lb-/;
-for (const [, prop, value] of widgetCss.matchAll(/(?:^|[;{])\s*([\w-]+)\s*:\s*([^;}]+)/g)) {
+for (const [, prop, value] of widgetCss.matchAll(/([\w-]+)\s*:\s*([^;}{]+)/g)) {
   // The widget's own token declarations are literals by necessity — it ships as
   // one file and cannot @import. Those are covered by the parity map above.
   if (WIDGET_TOKEN_DECL.test(prop)) continue;
@@ -262,8 +279,19 @@ for (const [, prop, value] of widgetCss.matchAll(/(?:^|[;{])\s*([\w-]+)\s*:\s*([
   }
 }
 
+// A scan that examined nothing must never report clean. Emptying
+// components.css used to print "uses tokens throughout" and exit 0.
+const componentsDecls = [...componentsCss.matchAll(/[\w-]+\s*:\s*[^;}{]+/g)].length;
+if (componentsDecls < 50) {
+  fail(`design/components.css scan only saw ${componentsDecls} declarations — it is not reading the file`);
+}
+const widgetDecls = [...widgetCss.matchAll(/[\w-]+\s*:\s*[^;}{]+/g)].length;
+if (widgetDecls < 100) {
+  fail(`widget stylesheet scan only saw ${widgetDecls} declarations — it is not reading the CSS`);
+}
+
 if (hardcoded.length === 0) {
-  pass("design/components.css uses tokens throughout — no literal colours");
+  pass(`design/components.css uses tokens throughout — no literal colours (${componentsDecls} declarations)`);
 } else {
   for (const [, prop, value, line] of hardcoded) {
     fail(`design/components.css:${line} hardcodes ${prop}: ${value} — use a token`);

@@ -309,6 +309,10 @@ export class LoopbackStore {
         error: `Feedback '${id}' is already claimed by '${existing.assignee_agent}'. Pass force=true to take over.`,
       };
     }
+    // The trail is what makes the queue trustworthy. A claim moves the item to
+    // in_progress and takes ownership — a mutation like any other, and it wrote
+    // nothing.
+    this.addComment(id, agent, force ? `[force-claimed by ${agent}]` : `[claimed by ${agent}]`);
     return { ok: true, item: this.get(id) ?? undefined };
   }
 
@@ -477,11 +481,18 @@ export class LoopbackStore {
     return row ?? null;
   }
 
-  deleteAttachment(feedbackId: string, attachmentId: string): boolean {
+  deleteAttachment(feedbackId: string, attachmentId: string, author = "human"): boolean {
+    // Read the name BEFORE deleting, so the trail can say what went.
+    const row = this.db
+      .prepare(`SELECT name FROM attachments WHERE feedback_id = ? AND id = ?`)
+      .get(feedbackId, attachmentId) as { name?: string } | undefined;
     const res = this.db
       .prepare(`DELETE FROM attachments WHERE feedback_id = ? AND id = ?`)
       .run(feedbackId, attachmentId);
-    return res.changes > 0;
+    if (res.changes === 0) return false;
+    // The only irreversible operation in the product, and it recorded nothing.
+    this.addComment(feedbackId, author, `[removed attachment] ${row?.name ?? attachmentId}`);
+    return true;
   }
 
   linkChange(id: string, links: ChangeLinks): FeedbackItem | null {
@@ -501,6 +512,13 @@ export class LoopbackStore {
     this.db
       .prepare(`UPDATE feedback SET links_json = ?, updated_at = ? WHERE id = ?`)
       .run(JSON.stringify(merged), nowIso(), id);
+    this.addComment(
+      id,
+      "agent",
+      `[linked change] ${[links.repo, links.branch, links.commit, links.pr_url]
+        .filter(Boolean)
+        .join(" · ")}`,
+    );
     return this.get(id);
   }
 

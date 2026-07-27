@@ -375,7 +375,7 @@ export function createHttpApp(
   app.delete("/feedback/:id/attachments/:attachmentId", (req, res) => {
     if (!requireTrustedOrigin(req, res)) return;
     const att = store.getAttachment(req.params.id, req.params.attachmentId);
-    if (!att || !store.deleteAttachment(req.params.id, req.params.attachmentId)) {
+    if (!att || !store.deleteAttachment(req.params.id, req.params.attachmentId, (req.query.author as string) || "human")) {
       res.status(404).json({ ok: false, error: "Attachment not found." });
       return;
     }

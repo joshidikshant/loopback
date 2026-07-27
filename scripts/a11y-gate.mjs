@@ -419,6 +419,35 @@ async function main() {
       await page.locator('[role=option]:has-text("triaged")').first().click();
     });
 
+    // Seed a linked change. The zoom and overflow checks ran on an item with no
+    // `links`, so the pr_url anchor — the one anchor in the file missing
+    // break-all — was never rendered during a measurement. There is no HTTP
+    // route for this; linking is MCP-only, and an earlier version of this seed
+    // POSTed to a URL that does not exist and swallowed the 404.
+    const linked = await fetch(`${LB}/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "loopback_link_change",
+          arguments: {
+            id: detail,
+            repo: "joshidikshant/loopback",
+            branch: "main",
+            commit: "abc1234def5678",
+            pr_url: "https://github.com/joshidikshant/loopback/pull/1234",
+          },
+        },
+      }),
+    }).then((r) => r.json());
+    check(
+      !linked.error && !linked.result?.isError,
+      `seeded a linked change so the pr_url anchor actually renders${linked.error ? ` — ${JSON.stringify(linked.error).slice(0, 120)}` : ""}`,
+    );
+
     // Seed an attachment first. Every zoom and overflow assertion below used to
     // run on an item that had none, so the attachment UI — which carries two
     // fixed-px floors — was never in the measured state at all.
@@ -431,11 +460,14 @@ async function main() {
     // The gate only ever varied title and body, never the root font size — so a
     // header that could not shrink pushed the search input 81px off the LEFT
     // edge at 375px, with negative overflow and no scrollbar to recover it.
-    for (const route of ["/queue", `/queue/${detail}`]) {
-      await page.goto(`${LB}${route}`);
-      await page.waitForSelector("h1");
-      await page.evaluate(() => (document.documentElement.style.fontSize = "32px"));
-      await page.waitForTimeout(150);
+    // 320px is SC 1.4.10's reflow floor. Everything here only ever ran at 375.
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      for (const route of ["/queue", `/queue/${detail}`]) {
+        await page.goto(`${LB}${route}`);
+        await page.waitForSelector("h1");
+        await page.evaluate(() => (document.documentElement.style.fontSize = "32px"));
+        await page.waitForTimeout(150);
       const zoomed = await page.evaluate(() => {
         const de = document.documentElement;
         const search = document.querySelector('input[aria-label="Search feedback"]');
@@ -444,11 +476,19 @@ async function main() {
           offLeft: search ? Math.round(search.getBoundingClientRect().left) < 0 : false,
         };
       });
-      check(!zoomed.overflow && !zoomed.offLeft,
-        `${route} at 375px and 200% text zoom: nothing off-screen (SC 1.4.4)${
-          zoomed.overflow ? ` — ${JSON.stringify(zoomed.overflow)}` : zoomed.offLeft ? " — search pushed off the left edge" : ""
-        }`);
-      await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+        check(!zoomed.overflow && !zoomed.offLeft,
+          `${route} at ${width}px and 200% text zoom: nothing off-screen (SC 1.4.4/1.4.10)${
+            zoomed.overflow ? ` — ${JSON.stringify(zoomed.overflow)}` : zoomed.offLeft ? " — search pushed off the left edge" : ""
+          }`);
+        await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+        // And at normal text size, which is where the pr_url anchor overflowed.
+        await page.waitForTimeout(100);
+        const plain = await page.evaluate(() => {
+          const de = document.documentElement;
+          return de.scrollWidth > de.clientWidth ? { s: de.scrollWidth, c: de.clientWidth } : null;
+        });
+        check(!plain, `${route} at ${width}px: no horizontal overflow${plain ? ` — ${JSON.stringify(plain)}` : ""}`);
+      }
     }
     await page.setViewportSize({ width: 1280, height: 800 });
 

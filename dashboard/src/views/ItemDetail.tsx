@@ -112,8 +112,19 @@ function Section({
   );
 }
 
-const Pre = ({ children }: { children: string }): React.JSX.Element => (
-  <pre className="mt-0.5 overflow-x-auto whitespace-pre-wrap rounded-md border bg-background p-2.5 font-mono text-xs">
+/**
+ * tabIndex={0} because this box scrolls. A scrollable region with no focusable
+ * descendant cannot be reached by keyboard at all — measured at 2000px of
+ * console capture inside a 1130px box, with everything past the fold
+ * unreachable. role/aria-label give the stop a name once it is in the tab order.
+ */
+const Pre = ({ children, label }: { children: string; label: string }): React.JSX.Element => (
+  <pre
+    tabIndex={0}
+    role="group"
+    aria-label={label}
+    className="mt-0.5 overflow-x-auto whitespace-pre-wrap rounded-md border bg-background p-2.5 font-mono text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+  >
     {children}
   </pre>
 );
@@ -281,6 +292,10 @@ export function ItemDetail({
                   type: item.type,
                 });
                 setEditing(true);
+                // This button unmounts itself, so nothing restores focus for it.
+                requestAnimationFrame(() => {
+                  document.getElementById("lb-edit-title")?.focus();
+                });
               }}
             >
               <Pencil className="size-4" /> Edit
@@ -341,7 +356,20 @@ export function ItemDetail({
             <Button size="sm" onClick={save} disabled={busy}>
               {busy ? "Saving…" : "Save"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setDraft({}); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setEditing(false);
+                setDraft({});
+                // Same: Cancel unmounts its own card.
+                requestAnimationFrame(() => {
+                  const header = document.querySelector('[data-lb-region="detail-header"]') as HTMLElement | null;
+                  header?.setAttribute("tabindex", "-1");
+                  header?.focus({ preventScroll: true });
+                });
+              }}
+            >
               Cancel
             </Button>
           </div>
@@ -406,19 +434,19 @@ export function ItemDetail({
             {failed.map((f, n) => (
               <div key={n} className="mb-2">
                 <code className="font-mono text-xs break-all">{f.status} {f.url}</code>
-                {f.body && <Pre>{f.body}</Pre>}
+                {f.body && <Pre label={`Response body for ${f.status} ${f.url}`}>{f.body}</Pre>}
               </div>
             ))}
           </Section>
         )}
         {context && (
           <Section region label="Run context (AI / automation)">
-            <Pre>{JSON.stringify(context, null, 2)}</Pre>
+            <Pre label="Run context JSON">{JSON.stringify(context, null, 2)}</Pre>
           </Section>
         )}
         {item.console.length > 0 && (
           <Section region label={`Console (${item.console.length})`}>
-            <Pre>{item.console.join("\n")}</Pre>
+            <Pre label="Console capture">{item.console.join("\n")}</Pre>
           </Section>
         )}
         {Object.values(item.links).some(Boolean) && (
@@ -431,7 +459,7 @@ export function ItemDetail({
                     <span className="text-muted-foreground">{k}:</span>{" "}
                     {k === "pr_url" && safeHref(String(v)) ? (
                       <a
-                        className="inline-block min-h-6 underline"
+                        className="inline-block min-h-6 break-all underline"
                         href={safeHref(String(v)) ?? undefined}
                         target="_blank"
                         rel="noreferrer noopener"
