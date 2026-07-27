@@ -139,6 +139,28 @@ export function QueueList({
 
   useEffect(() => writeFilters(filters, q), [filters, q]);
 
+  // Poll, on the widget's cadence.
+  //
+  // "The loop closes visibly" is the product's whole claim, and this page —
+  // which embeds the widget — contradicted it: an agent resolving an item made
+  // the widget toast "open → verified" and repaint its pin green, while the
+  // table row underneath kept the stale status forever, because neither view
+  // ever refetched. Skipped while the tab is hidden so a backgrounded queue
+  // costs nothing.
+  useEffect(() => {
+    const tick = (): void => {
+      if (document.hidden) return;
+      api
+        .list({ project: filters.project }, PAGE)
+        .then((r) => setAll(r.items))
+        .catch(() => {
+          /* transient; the next tick retries and `error` already covers load */
+        });
+    };
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, [filters.project]);
+
   const counts = useMemo(() => {
     const c = new Map<Status, number>();
     for (const i of all) c.set(i.status, (c.get(i.status) ?? 0) + 1);

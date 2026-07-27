@@ -305,7 +305,8 @@
     "--lb-fixed:oklch(0.8 0.09 168);--lb-fixed-fg:oklch(0.205 0 0);" +
     "--lb-verified:oklch(0.508 0.118 165.612);--lb-verified-fg:oklch(0.985 0 0);" +
     "--lb-wontfix:oklch(0.551 0.027 264.364);--lb-wontfix-fg:oklch(0.985 0 0);" +
-    "--lb-highlight:oklch(0.488 0.243 264.376);" +
+    "--lb-highlight:oklch(0.488 0.243 264.376);"+
+    "--lb-overlay-dark:oklch(0.145 0 0);--lb-overlay-light:oklch(1 0 0);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.18);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.22);" +
     "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.2);" +
     "--lb-font:system-ui,-apple-system,'Segoe UI',sans-serif}";
@@ -389,7 +390,7 @@
     ".b-fixed{background:var(--lb-fixed);color:var(--lb-fixed-fg)}" +
     ".b-verified{background:var(--lb-verified);color:var(--lb-verified-fg)}" +
     ".b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
-    ".hl{position:fixed;left:0;top:0;will-change:transform;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
+    ".hl{position:fixed;left:0;top:0;will-change:transform;z-index:2147482998;pointer-events:none;box-shadow:0 0 0 2px var(--lb-overlay-light),0 0 0 4px var(--lb-overlay-dark);border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
     ".form{position:fixed;z-index:2147483001;width:min(300px,calc(100vw - 16px));max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
     // 16px, not 13px: iOS Safari zooms the viewport on focus for anything under
     // 16px, and this panel is position:fixed — the zoom leaves it half off-screen
@@ -417,7 +418,7 @@
     // lying about what it marks; the panel's pin list is the large-target route
     // to the same actions.
     ".pin{position:fixed;left:0;top:0;z-index:2147482999;width:var(--lb-pin-size);height:var(--lb-pin-size);padding:0;border:none;border-radius:var(--lb-pin-radius);background:var(--lb-primary);color:var(--lb-primary-fg);font-size:11px;font-weight:600;line-height:var(--lb-pin-size);text-align:center;cursor:pointer;box-shadow:var(--lb-shadow-sm);font-family:var(--lb-font)}" +
-    ".pin:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
+    ".pin:focus-visible{outline:2px solid var(--lb-overlay-dark);outline-offset:2px;box-shadow:0 0 0 4px var(--lb-overlay-light)}" +
     ".pin.b-open{background:var(--lb-open);color:var(--lb-open-fg)}" +
     ".pin.b-triaged{background:var(--lb-triaged);color:var(--lb-triaged-fg)}" +
     ".pin.b-in_progress{background:var(--lb-in-progress);color:var(--lb-in-progress-fg)}" +
@@ -1247,6 +1248,10 @@
       renderPins(window.__loopback.pins);
     });
   }
+  // Capture phase on document, not just window: an app-shell host scrolls an
+  // inner container, and a window-only listener never fires for it — pins kept
+  // a frozen transform while their anchors moved 400px.
+  document.addEventListener("scroll", scheduleRender, { capture: true, passive: true });
   window.addEventListener("scroll", scheduleRender);
   window.addEventListener("resize", scheduleRender);
 

@@ -106,6 +106,15 @@
   --lb-pin-radius: 999px 999px 999px 4px;
   --lb-highlight: oklch(0.488 0.243 264.376);
 
+  /* Overlay stroke pair, drawn ON the host page. Deliberately theme-INVARIANT:
+     the widget cannot know the host's background, so no single colour is
+     guaranteed 3:1 against it. Painting both means one half always contrasts.
+     A dark-mode viewer on a light site previously got a 1.57:1 pin focus ring
+     and a 2.64:1 selection box, because these took their colour from the
+     widget's own surface. */
+  --lb-overlay-dark: oklch(0.145 0 0);
+  --lb-overlay-light: oklch(1 0 0);
+
   /* Elevation — surfaces that float above an unknown host page. */
   --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.18);
   --lb-shadow-md: 0 4px 14px rgb(0 0 0 / 0.22);

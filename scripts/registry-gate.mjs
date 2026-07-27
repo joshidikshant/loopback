@@ -176,12 +176,28 @@ if (theme) {
       if (!file.path.endsWith(".css")) continue;
       const text = readFileSync(join(ROOT, file.path), "utf-8");
       const needed = [...new Set([...text.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]))];
-      const supplied = new Set(Object.keys(theme.cssVars?.light ?? {}).map((k) => `--${k}`));
-      const absent = needed.filter((n) => !supplied.has(n));
+      // BOTH blocks. Reading only `light` meant a token deleted from the dark
+      // block passed clean, and the parity walk goes registry → tokens.css so
+      // nothing else looked either — an adopter would have got a 3.34:1 badge.
+      // Theme-invariant tokens live in :root only, so dark is checked against
+      // what the source's own .dark block actually overrides.
+      const suppliedLight = new Set(Object.keys(theme.cssVars?.light ?? {}).map((k) => `--${k}`));
+      const suppliedDark = new Set(Object.keys(theme.cssVars?.dark ?? {}).map((k) => `--${k}`));
+      const absent = needed.filter((n) => !suppliedLight.has(n));
       assert(
         absent.length === 0,
         `published theme supplies every variable ${item.name} consumes${
           absent.length ? ` (missing ${absent.length}: ${absent.slice(0, 6).join(", ")}…)` : ` (${needed.length})`
+        }`,
+      );
+      // Reverse direction: every token the SOURCE .dark block overrides must
+      // survive into the published dark block.
+      const darkSource = Object.keys(source.dark ?? {});
+      const droppedDark = darkSource.filter((n) => !suppliedDark.has(n));
+      assert(
+        droppedDark.length === 0,
+        `published dark block keeps every override tokens.css declares${
+          droppedDark.length ? ` (dropped ${droppedDark.length}: ${droppedDark.slice(0, 6).join(", ")}…)` : ` (${darkSource.length})`
         }`,
       );
     }

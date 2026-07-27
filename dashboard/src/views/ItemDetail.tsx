@@ -162,6 +162,17 @@ export function ItemDetail({
   };
   useEffect(reload, [id]);
 
+  // Same reason as the queue: an agent can resolve this item while it is open,
+  // and the widget on this very page would repaint its pin green while the
+  // detail view kept the old status. Paused while a write is in flight so a
+  // poll cannot clobber what the user is doing.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden && !busy && !editing) reload();
+    }, 10000);
+    return () => clearInterval(t);
+  }, [id, busy, editing]);
+
   if (error) {
     return (
       <div className="grid gap-4">

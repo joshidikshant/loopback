@@ -130,6 +130,11 @@ const INVARIANT_PAIRS = [
   ["--lb-pin-radius", "--lb-pin-radius"],
   ["--lb-radius", "--radius"],
   ["--lb-font", "--lb-font"],
+  // Theme-INVARIANT by design: these are drawn on the HOST page, so they must
+  // not follow the widget's own light/dark choice — no single colour can be
+  // guaranteed 3:1 against a background we do not control.
+  ["--lb-overlay-dark", "--lb-overlay-dark"],
+  ["--lb-overlay-light", "--lb-overlay-light"],
 ];
 
 // Shadows DO change between themes (they deepen on dark), so they belong in the
@@ -368,6 +373,15 @@ for (const rel of appFiles) {
   }
   for (const hit of text.match(CLASS_LITERAL) ?? []) {
     fail(`${rel} uses the literal colour class \`${hit}\` — use a token utility`);
+  }
+  // Inline styles too. A literal in a React style={{ color: "#f00" }} carried
+  // no Tailwind class, so the class scan could never see it.
+  for (const [, prop, value] of text.matchAll(
+    /\b(color|background|backgroundColor|borderColor|outlineColor|fill|stroke|boxShadow)\s*:\s*(["'`][^"'`]*["'`])/g,
+  )) {
+    if (COLOUR_LITERAL.test(value)) {
+      fail(`${rel} hardcodes ${prop}: ${value} in an inline style — use a token`);
+    }
   }
 }
 if (appScanned < 3) fail(`dashboard/src scan only saw ${appScanned} files — it is not reading the tree`);
