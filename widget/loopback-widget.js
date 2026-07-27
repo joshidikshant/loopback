@@ -1154,24 +1154,39 @@
       // every pin landed offset by the auto margin — measured 300px off on a
       // 680px centred page. Fixed + viewport coords is immune to the host's
       // layout; scroll/resize already re-render (rAF-throttled).
-      // transform, not left/top: position writes force layout + paint on every
-      // host scroll frame, while a transform stays on the compositor. The pin
-      // is anchored at 0,0 and translated into place.
-      var t = "translate3d(" + Math.round(rec.left) + "px," + Math.round(rec.top) + "px,0)";
-      if (pin.style.transform !== t) pin.style.transform = t;
-      // Off-screen pins leave the tab order entirely. They used to stay
-      // focusable at negative coordinates: focus would vanish to a control the
-      // user could neither see nor scroll to.
-      // Clamp into the viewport, like the capture form does. An anchor at the
-      // very top or hard against an edge left the pin only partly on screen —
-      // measured 10x24 and 24x14 — so the 24px target size was notional.
+      // Order matters, and it was wrong: the clamp and the visibility test used
+      // to run AFTER the transform was written, so the clamped values never
+      // reached the element — and `visible` was computed on the clamped
+      // coordinates, which are in-viewport by construction, so it was
+      // arithmetically always true. Both halves of the fix were inert while
+      // their comments claimed otherwise, leaving 46 of 50 pins rendered and
+      // tabbable off-screen and costing 2.8x the per-frame style recalc.
+      //
+      // 1. Decide visibility from the RAW anchor position.
       var PIN = 24;
-      rec.left = Math.max(2, Math.min(rec.left, window.innerWidth - PIN - 2));
-      rec.top = Math.max(2, Math.min(rec.top, window.innerHeight - PIN - 2));
       var visible =
-        rec.top > -PIN && rec.top < window.innerHeight && rec.left > -PIN && rec.left < window.innerWidth;
+        rec.top > -PIN &&
+        rec.top < window.innerHeight &&
+        rec.left > -PIN &&
+        rec.left < window.innerWidth;
       var vis = visible ? "" : "none";
       if (pin.style.display !== vis) pin.style.display = vis;
+      // Off-screen pins leave the tab order entirely — display:none alone would
+      // do it, but be explicit so a future style change cannot resurrect them.
+      var tab = visible ? "0" : "-1";
+      if (pin.getAttribute("tabindex") !== tab) pin.setAttribute("tabindex", tab);
+      if (!visible) {
+        pinEls.push(pin);
+        continue;
+      }
+      // 2. Only now clamp, so a pin anchored hard against an edge still shows
+      //    its full 24px target.
+      var left = Math.max(2, Math.min(rec.left, window.innerWidth - PIN - 2));
+      var top = Math.max(2, Math.min(rec.top, window.innerHeight - PIN - 2));
+      // 3. And write. transform, not left/top: position writes force layout +
+      //    paint on every host scroll frame, a transform stays on the compositor.
+      var t = "translate3d(" + Math.round(left) + "px," + Math.round(top) + "px,0)";
+      if (pin.style.transform !== t) pin.style.transform = t;
       pinEls.push(pin);
     }
     changedIds = {};

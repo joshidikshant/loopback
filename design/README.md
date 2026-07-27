@@ -88,7 +88,10 @@ npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/m
 npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-widget.json
 ```
 
-The theme item only *adds* `--lb-*` variables — your palette is untouched. The
+  `loopback-theme` ships the FULL shadcn theme contract (background, foreground,
+  primary, muted, ring, radius…) alongside the `--lb-*` domain tokens, so
+  installing it REPLACES your palette. If you only want the Loopback-specific
+  tokens, copy the `--lb-*` block out of `design/tokens.css` instead.
 shadcn CLI also generates `@theme inline` mappings for them, so Tailwind
 utilities like `bg-lb-verified` and `text-lb-p0` work immediately.
 

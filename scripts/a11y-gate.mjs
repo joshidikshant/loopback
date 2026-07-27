@@ -648,17 +648,20 @@ async function main() {
     // 3.28:1 for a pair that is genuinely 6.21:1. The same trap this file
     // documents at the top, on a page added later that did not inherit the fix.
     await recipe.evaluate(KILL_MOTION);
-    for (const scheme of ["light", "dark"]) {
-      await recipe.evaluate((s) => {
-        document.documentElement.classList.toggle("dark", s === "dark");
-      }, scheme);
-      await recipe.waitForTimeout(60);
-      const m = await recipe.evaluate(MEASURE);
-      check(m.contrastLight.length === 0,
-        `published recipe (${scheme}): every class clears contrast on a hovered row${
-          m.contrastLight.length ? ` — ${JSON.stringify(m.contrastLight)}` : ""
-        }`);
-    }
+    // ONE evaluate. MEASURE toggles .dark itself and strips it again before
+    // returning, so an outer loop that set the class was undone from the inside
+    // — and both iterations then asserted contrastLight, meaning the "(dark)"
+    // line measured light twice. Proven inert by canary: a 1.04:1 dark-mode
+    // failure in components.css printed green.
+    const recipeM = await recipe.evaluate(MEASURE);
+    check(recipeM.contrastLight.length === 0,
+      `published recipe (light): every class clears contrast on a hovered row${
+        recipeM.contrastLight.length ? ` — ${JSON.stringify(recipeM.contrastLight)}` : ""
+      }`);
+    check(recipeM.contrastDark.length === 0,
+      `published recipe (dark): every class clears contrast on a hovered row${
+        recipeM.contrastDark.length ? ` — ${JSON.stringify(recipeM.contrastDark)}` : ""
+      }`);
     await recipe.close();
 
     // ---------- reduced motion is honoured where the motion actually is ----------

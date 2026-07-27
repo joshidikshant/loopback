@@ -284,7 +284,7 @@ Call this right after committing the fix, before updating status to 'fixed'.`,
       title: "Resolve feedback",
       description: `Close a feedback item with a final outcome.
 
-Args: id, resolution ('verified' = the fix was confirmed against the running app, tests, or the relevant metric/replay; 'wontfix' = intentionally not addressing), note (optional closing comment).
+Args: id, resolution ('verified' = the fix was confirmed against the running app, tests, or the relevant metric/replay; 'wontfix' = intentionally not addressing), note (optional closing comment), agent (YOUR name — this is the write that turns the reporter's pin full green, and omitting it records the generic default instead of you).
 
 Prefer verifying before resolving: re-check the UI via your browser tools, or confirm the error/metric cleared, then call this.`,
       inputSchema: strict(resolveShape),

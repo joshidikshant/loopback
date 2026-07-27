@@ -52,9 +52,11 @@ Work one item at a time, most severe first:
    browser tool/MCP; backend or logic → run the tests or hit the endpoint;
    usage/metric issues → check the metric or replay.
 9. Only after verification: `loopback_resolve_feedback(id,
-   resolution="verified", note=...)`. Use `wontfix` with a reason when
-   intentionally not fixing. Resolving flips the reporter's pin green — do not
-   claim it until it is true.
+   resolution="verified", note=..., agent=<your name>)`. **Pass `agent`** — this
+   is the write that turns the reporter's pin full green, and without it the
+   trail records the default `"agent"` instead of you. Use `wontfix` with a
+   reason when intentionally not fixing. Resolving flips the reporter's pin
+   green — do not claim it until it is true.
 
 ### Attachments — reference vs asset
 

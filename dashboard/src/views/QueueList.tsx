@@ -248,12 +248,17 @@ export function QueueList({
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setFilters((f) => ({ ...f, [k]: undefined }))}
-                    aria-label={`Remove the ${k.replace("_agent", "")} filter, currently ${v}`}
-                    className="inline-flex h-11 items-center rounded-md px-1"
+                    aria-label={`${k.replace("_agent", "")}: ${v} — remove this filter`}
+                    className="inline-flex h-11 min-w-0 max-w-full items-center rounded-md px-1"
                   >
-                    <Badge variant="outline" className="pointer-events-none gap-1">
-                      {k.replace("_agent", "")}: <strong>{v}</strong>
-                      <X className="size-3" />
+                    <Badge
+                      variant="outline"
+                      className="pointer-events-none min-w-0 max-w-full gap-1 whitespace-normal"
+                    >
+                      <span className="min-w-0 break-all">
+                        {k.replace("_agent", "")}: <strong>{v}</strong>
+                      </span>
+                      <X className="size-3 shrink-0" />
                     </Badge>
                   </button>
                 </TooltipTrigger>

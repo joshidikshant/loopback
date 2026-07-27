@@ -203,7 +203,10 @@ npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/m
 ```
 
 `loopback-theme` adds the `--lb-*` feedback status/severity tokens to your
-existing theme (your palette untouched; Tailwind gets `bg-lb-verified` for
+  `loopback-theme` ships the FULL shadcn theme contract (background, foreground,
+  primary, muted, ring, radius…) alongside the `--lb-*` domain tokens, so
+  installing it REPLACES your palette. If you only want the Loopback-specific
+  tokens, copy the `--lb-*` block out of `design/tokens.css` instead.
 free). `loopback-widget` drops the capture widget into `public/`. Register
 `"@loopback"` in your `components.json` to install by name and let an agent
 with the shadcn MCP browse the registry.
