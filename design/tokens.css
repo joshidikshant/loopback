@@ -114,6 +114,11 @@
      widget's own surface. */
   --lb-overlay-dark: oklch(0.145 0 0);
   --lb-overlay-light: oklch(1 0 0);
+  /* Modal scrim. Pure black and theme-invariant, because it has to darken a
+     page that is already near-black in dark mode — a scrim derived from
+     --foreground BRIGHTENED it (composited to rgb(154,154,154) over
+     rgb(10,10,10)), and one derived from --lb-overlay-dark vanished into it. */
+  --lb-scrim: oklch(0 0 0);
 
   /* Elevation — surfaces that float above an unknown host page. */
   --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.18);

@@ -5,11 +5,27 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import * as React from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  // Read the class the app actually toggles, not next-themes — there is no
+  // ThemeProvider in this tree, so useTheme() returned undefined and Sonner sat
+  // permanently on theme="system", following prefers-color-scheme while the
+  // rest of the app followed the .dark class.
+  const [theme, setTheme] = React.useState<"light" | "dark">(() =>
+    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light",
+  )
+  React.useEffect(() => {
+    const sync = (): void =>
+      setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light")
+    sync()
+    const mo = new MutationObserver(sync)
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => mo.disconnect()
+  }, [])
 
   return (
     <Sonner

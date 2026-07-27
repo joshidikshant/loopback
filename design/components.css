@@ -248,7 +248,21 @@
   border: 2px solid var(--lb-highlight);
   border-radius: var(--radius-sm);
   background: color-mix(in oklch, var(--lb-highlight) 10%, transparent);
+  /* Dual-tone stroke. The highlight sits over an arbitrary host page, so one
+     colour is never enough: whichever tone matches the surface underneath,
+     the other one still reads. */
+  box-shadow:
+    0 0 0 2px var(--lb-overlay-light),
+    0 0 0 4px var(--lb-overlay-dark);
   pointer-events: none;
+}
+
+/* Same reasoning for keyboard focus on a pin: an outline in one tone
+   disappears on a host page that happens to share it. */
+.lb-pin:focus-visible {
+  outline: 2px solid var(--lb-overlay-dark);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--lb-overlay-light);
 }
 
 /* ---- Reduced motion ---------------------------------------------------

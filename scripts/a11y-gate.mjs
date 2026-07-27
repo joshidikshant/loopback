@@ -121,8 +121,9 @@ const MEASURE = `(() => {
       if (!el.getBoundingClientRect().width) return;
       const px = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight) >= 700;
       const need = (px >= 24 || (px >= 18.66 && bold)) ? 3 : 4.5;
-      const r = ratio(rgb(cs.color), bgOf(el));
-      const k = cs.color + '|' + cs.backgroundColor + '|' + px;
+      const bg = bgOf(el);
+      const r = ratio(rgb(cs.color), bg);
+      const k = cs.color + '|' + bg.join(',') + '|' + px;
       if (seen.has(k)) return; seen.add(k);
       if (r < need) out.push({ text: t.slice(0,24), px, ratio: +r.toFixed(2), need });
     });
@@ -658,6 +659,58 @@ async function main() {
     }
     await wpage.emulateMedia({ colorScheme: "light" });
 
+    // ---------- the widget under a real viewport, not just 1280x800 ----------
+    // Every widget assertion above ran at one large size, so the panel's
+    // height was never constrained. `.form` clamps to min(72vh,460px) with
+    // overflow:auto; `.panel` shipped with neither, and its primary action
+    // fell below the fold on a landscape phone with no way to scroll to it.
+    for (const [w, h] of [[320, 480], [568, 320], [375, 812]]) {
+      await wpage.setViewportSize({ width: w, height: h });
+      await wpage.waitForTimeout(120);
+      // The earlier keyboard test leaves pin mode ON, and the fab's first
+      // click EXITS pin mode rather than opening the panel — so a single
+      // blind click measured a closed panel and reported it as unopenable.
+      const open = await wpage.evaluate(() => {
+        const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+        const fab = sr.querySelector(".fab");
+        if (fab.classList.contains("pinmode")) fab.click();
+        if (!sr.querySelector(".panel").classList.contains("open")) fab.click();
+        return sr.querySelector(".panel").classList.contains("open");
+      });
+      await wpage.waitForTimeout(150);
+      const fit = await wpage.evaluate(() => {
+        const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+        const p = sr.querySelector(".panel");
+        if (!p || getComputedStyle(p).display === "none") return null;
+        const r = p.getBoundingClientRect();
+        const cs = getComputedStyle(p);
+        return {
+          top: Math.round(r.top), bottom: Math.round(r.bottom),
+          right: Math.round(r.right), left: Math.round(r.left),
+          scrollable: p.scrollHeight > p.clientHeight + 1,
+          overflowY: cs.overflowY,
+        };
+      });
+      if (open && fit) {
+        // Reachability, not just visibility: content past the fold is fine IF
+        // the container scrolls. Unreachable content is the failure.
+        const vertOk = (fit.top >= 0 && fit.bottom <= h) || fit.overflowY === "auto" || fit.overflowY === "scroll";
+        const horizOk = fit.left >= 0 && fit.right <= w;
+        check(vertOk, `widget panel at ${w}x${h}: fully reachable (top ${fit.top}, bottom ${fit.bottom}, overflow-y ${fit.overflowY})`);
+        check(horizOk, `widget panel at ${w}x${h}: within the viewport horizontally (${fit.left}..${fit.right} of ${w})`);
+      } else {
+        check(false, `widget panel at ${w}x${h}: opened and measurable`);
+      }
+      const mm = await wpage.evaluate(MEASURE);
+      check(mm.smallTargets.length === 0,
+        `widget at ${w}x${h}: every target clears 24x24${mm.smallTargets.length ? ` — ${JSON.stringify(mm.smallTargets)}` : ""}`);
+      await wpage.evaluate(() => {
+        const sr = document.querySelector("#loopback-widget-host").shadowRoot;
+        if (sr.querySelector(".panel").classList.contains("open")) sr.querySelector(".fab").click();
+      });
+    }
+    await wpage.setViewportSize({ width: 1280, height: 800 });
+
     // ---------- the delete-confirm dialog ----------
     // No gate ever opened it. It is position:fixed, so its overflow never
     // reaches documentElement.scrollWidth — a title 215px past the right edge
@@ -738,6 +791,47 @@ async function main() {
       `published recipe (dark): every class clears contrast on a hovered row${
         recipeM.contrastDark.length ? ` — ${JSON.stringify(recipeM.contrastDark)}` : ""
       }`);
+    // components.css ships its OWN reduced-motion block, and nothing exercised
+    // it — the assertion below this one probes the dashboard, whose rule comes
+    // from Tailwind. The shipped rule is deliberately not `animation: none`
+    // alone: it swaps the moving pin for a steady ring so "this one changed"
+    // still reads. Both halves are asserted, because deleting the ring while
+    // keeping the animation kill would silently drop the signal.
+    // A FRESH page. The recipe page above has KILL_MOTION injected for the
+    // contrast pass — `animation:none!important` on everything — so probing it
+    // there measured the gate's own stylesheet: the assertion printed
+    // "name none, duration 0s" identically with the components.css block
+    // deleted. Reduced motion cannot be measured on a page whose motion was
+    // already killed by hand.
+    const rmr = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await rmr.emulateMedia({ reducedMotion: "reduce" });
+    await rmr.setContent(`<!doctype html><html><head><style>
+      ${tokensCss}
+      ${componentsCss}
+    </style></head><body class="lb-body"></body></html>`);
+    await rmr.waitForTimeout(60);
+    const rmRecipe = await rmr.evaluate(() => {
+      const el = document.createElement("span");
+      el.className = "lb-pin lb-pin--changed";
+      document.body.appendChild(el);
+      const cs = getComputedStyle(el);
+      const out = { name: cs.animationName, dur: cs.animationDuration, shadow: cs.boxShadow };
+      el.remove();
+      return out;
+    });
+    check(rmRecipe.name === "none" || parseFloat(rmRecipe.dur) < 0.05,
+      `components.css: reduced motion stops the changed-pin animation (name ${rmRecipe.name}, duration ${rmRecipe.dur})`);
+    // Geometry, not a colour-function name: the deleted-block run produced
+    // `oklab(...) 0px 0px 0px 0px` — a shadow string that is present but has
+    // zero spread, i.e. invisible. A substring test on the colour syntax
+    // failed it for the wrong reason and would have passed any non-empty ring.
+    const spread = Math.max(
+      0,
+      ...[...rmRecipe.shadow.matchAll(/(-?[\d.]+)px/g)].map((m) => parseFloat(m[1])),
+    );
+    check(spread >= 2,
+      `components.css: the still state keeps a visible ring, not nothing (spread ${spread}px)`);
+    await rmr.close();
     await recipe.close();
 
     // ---------- reduced motion is honoured where the motion actually is ----------

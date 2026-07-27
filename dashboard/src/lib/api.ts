@@ -174,9 +174,13 @@ export const api = {
     }).then((r) => json<{ item: Item }>(r));
   },
 
-  detach(id: string, attachmentId: string): Promise<unknown> {
+  detach(id: string, attachmentId: string, author: string): Promise<unknown> {
+    // The author rides along. Removal is the only irreversible operation in the
+    // product and it was recorded as a generic "human", while attach() — the
+    // reversible twin — named the real user.
+    const qs = new URLSearchParams({ author });
     return fetch(
-      `/feedback/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}`,
+      `/feedback/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}?${qs}`,
       { method: "DELETE" },
     ).then(json);
   },

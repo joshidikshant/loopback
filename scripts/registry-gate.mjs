@@ -144,7 +144,13 @@ if (theme) {
       continue;
     }
     for (const [name, value] of Object.entries(theme.cssVars?.[themeName] ?? {})) {
-      const want = src[`--${name}`];
+      // Resolve the way a browser does: `.dark` if it overrides the token,
+      // otherwise the inherited `:root` value. A strict per-block lookup
+      // called every theme-INVARIANT token (the overlay trio, declared once in
+      // :root) "absent from tokens.css" in dark. The swap check this block
+      // exists for is unaffected — a swapped token IS declared in `.dark`, so
+      // it is still compared strictly against it.
+      const want = src[`--${name}`] ?? (themeName === "dark" ? source.light?.[`--${name}`] : undefined);
       compared++;
       if (want === undefined) drifted.push(`${themeName}/${name} (absent from tokens.css)`);
       else if (want !== squash(value)) drifted.push(`${themeName}/${name}: ${squash(value)} ≠ ${want}`);

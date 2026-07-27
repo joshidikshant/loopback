@@ -135,6 +135,7 @@ const INVARIANT_PAIRS = [
   // guaranteed 3:1 against a background we do not control.
   ["--lb-overlay-dark", "--lb-overlay-dark"],
   ["--lb-overlay-light", "--lb-overlay-light"],
+  ["--lb-scrim", "--lb-scrim"],
 ];
 
 // Shadows DO change between themes (they deepen on dark), so they belong in the
@@ -386,6 +387,32 @@ for (const rel of appFiles) {
 }
 if (appScanned < 3) fail(`dashboard/src scan only saw ${appScanned} files — it is not reading the tree`);
 else pass(`dashboard/src uses token utilities throughout (${appScanned} files scanned)`);
+
+// ---------- @theme inline: the unguarded hop ----------
+// Every `lb-*` utility the dashboard USES must be mapped in index.css, or
+// Tailwind emits nothing for it and the build still passes.
+{
+  const themeCss = readFileSync(join(ROOT, "dashboard", "src", "index.css"), "utf-8");
+  const mappedUtilities = new Set(
+    [...themeCss.matchAll(/--color-(lb-[\w-]+):/g)].map((m) => m[1]),
+  );
+  const used = new Set();
+  for (const rel of appFiles) {
+    if (rel.endsWith(".css")) continue;
+    const text = readFileSync(join(ROOT, rel), "utf-8");
+    for (const [, util] of text.matchAll(/\b(?:bg|text|border|ring|fill|stroke|outline)-(lb-[\w-]+)\b/g)) {
+      used.add(util);
+    }
+  }
+  const unmapped = [...used].filter((u) => !mappedUtilities.has(u));
+  if (unmapped.length) {
+    for (const u of unmapped) {
+      fail(`dashboard uses \`${u}\` but index.css maps no --color-${u} — Tailwind emits nothing for it`);
+    }
+  } else {
+    pass(`every lb-* utility the dashboard uses is mapped in @theme (${used.size} checked)`);
+  }
+}
 
 if (failures) {
   console.error(`\nWIDGET TOKEN GATE FAILED — ${failures} mismatch(es)`);

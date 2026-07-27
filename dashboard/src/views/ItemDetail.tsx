@@ -608,7 +608,7 @@ export function ItemDetail({
                     <AlertDialogAction
                       onClick={() =>
                         run(async () => {
-                          await api.detach(id, a.id);
+                          await api.detach(id, a.id, author());
                           toast.success("Removed");
                           reload();
                         }, "attachments")

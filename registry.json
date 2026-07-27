@@ -8,7 +8,7 @@
       "name": "loopback-theme",
       "type": "registry:theme",
       "title": "Loopback theme",
-      "description": "Loopback's design tokens: the full shadcn/ui theme contract (24 standard variables \u2014 background, foreground, primary, muted, ring, radius\u2026) plus Loopback's own --lb-* domain tokens for feedback status, severity and the pin. Installing this REPLACES your shadcn palette; if you only want the domain tokens, copy the --lb-* block from design/tokens.css instead.",
+      "description": "Loopback's design tokens: the full shadcn/ui theme contract (24 standard variables — background, foreground, primary, muted, ring, radius…) plus Loopback's own --lb-* domain tokens for feedback status, severity and the pin. Installing this REPLACES your shadcn palette; if you only want the domain tokens, copy the --lb-* block from design/tokens.css instead.",
       "author": "Dikshant Joshi <https://github.com/joshidikshant>",
       "categories": [
         "theme",
@@ -64,7 +64,10 @@
           "lb-shadow-md": "0 4px 14px rgb(0 0 0 / 0.22)",
           "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.2)",
           "lb-font": "system-ui, -apple-system, \"Segoe UI\", sans-serif",
-          "lb-font-mono": "ui-monospace, SFMono-Regular, Menlo, monospace"
+          "lb-font-mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+          "lb-overlay-dark": "oklch(0.145 0 0)",
+          "lb-overlay-light": "oklch(1 0 0)",
+          "lb-scrim": "oklch(0 0 0)"
         },
         "dark": {
           "color-scheme": "dark",
@@ -106,7 +109,10 @@
           "lb-highlight": "oklch(0.707 0.165 254.624)",
           "lb-shadow-sm": "0 2px 8px rgb(0 0 0 / 0.5)",
           "lb-shadow-md": "0 4px 14px rgb(0 0 0 / 0.55)",
-          "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.6)"
+          "lb-shadow-lg": "0 10px 32px rgb(0 0 0 / 0.6)",
+          "lb-overlay-dark": "oklch(0.145 0 0)",
+          "lb-overlay-light": "oklch(1 0 0)",
+          "lb-scrim": "oklch(0 0 0)"
         }
       },
       "docs": "Pairs with the loopback-widget item. Use the tokens directly (background: var(--lb-verified)) or through Tailwind arbitrary values (bg-[var(--lb-verified)]). Status names match the Loopback MCP bus exactly, so a badge coloured by var(--lb-{status}) always agrees with the queue."
@@ -115,7 +121,7 @@
       "name": "loopback-components",
       "type": "registry:file",
       "title": "Loopback component recipes",
-      "description": "Vanilla CSS recipes for the shadcn component vocabulary (lb-btn, lb-badge, lb-card, lb-table, lb-input, lb-pin). No Tailwind, no build step, no React \u2014 every value comes from the loopback-theme tokens.",
+      "description": "Vanilla CSS recipes for the shadcn component vocabulary (lb-btn, lb-badge, lb-card, lb-table, lb-input, lb-pin). No Tailwind, no build step, no React — every value comes from the loopback-theme tokens.",
       "registryDependencies": [
         "@loopback/loopback-theme"
       ],
@@ -132,7 +138,7 @@
       "name": "loopback-widget",
       "type": "registry:file",
       "title": "Loopback capture widget",
-      "description": "The embeddable feedback widget itself: a dependency-free vanilla-JS IIFE that renders a floating toolbar, lets a user pin feedback on any element, auto-captures failing requests with their response bodies, console trail and AI run metadata, and turns pins green when an agent verifies the fix. Framework-agnostic \u2014 it runs in a shadow root and never touches your styles.",
+      "description": "The embeddable feedback widget itself: a dependency-free vanilla-JS IIFE that renders a floating toolbar, lets a user pin feedback on any element, auto-captures failing requests with their response bodies, console trail and AI run metadata, and turns pins green when an agent verifies the fix. Framework-agnostic — it runs in a shadow root and never touches your styles.",
       "author": "Dikshant Joshi <https://github.com/joshidikshant>",
       "categories": [
         "feedback",

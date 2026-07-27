@@ -306,7 +306,7 @@
     "--lb-verified:oklch(0.508 0.118 165.612);--lb-verified-fg:oklch(0.985 0 0);" +
     "--lb-wontfix:oklch(0.551 0.027 264.364);--lb-wontfix-fg:oklch(0.985 0 0);" +
     "--lb-highlight:oklch(0.488 0.243 264.376);"+
-    "--lb-overlay-dark:oklch(0.145 0 0);--lb-overlay-light:oklch(1 0 0);" +
+    "--lb-overlay-dark:oklch(0.145 0 0);--lb-overlay-light:oklch(1 0 0);--lb-scrim:oklch(0 0 0);" +
     "--lb-shadow-sm:0 2px 8px rgb(0 0 0/0.18);--lb-shadow-md:0 4px 14px rgb(0 0 0/0.22);" +
     "--lb-shadow-lg:0 10px 32px rgb(0 0 0/0.2);" +
     "--lb-font:system-ui,-apple-system,'Segoe UI',sans-serif}";
@@ -371,7 +371,7 @@
     // Suppress it when the panel is open or we're mid-pin: the label no longer
     // says "Loopback", so explaining Loopback would be noise.
     ".panel.open~.tip,.fab.pinmode~.tip,.tip.dismissed{opacity:0!important;transform:translateY(4px)!important;pointer-events:none!important}" +
-    ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:290px;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
+    ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:min(290px,calc(100vw - 36px));max-height:calc(100vh - 76px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
     ".panel.open{display:block}" +
     ".panel h3{margin:0 0 8px;font-size:13px;font-weight:600}" +
     ".panel button{width:100%;margin:4px 0;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
