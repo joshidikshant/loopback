@@ -327,10 +327,14 @@
     "border-radius:" + RADIUS_MD + ";font-size:12px;line-height:1.45;" +
     "box-shadow:var(--lb-shadow-md);opacity:0;transform:translateY(4px);" +
     "transition:opacity .12s ease,transform .12s ease;pointer-events:none}" +
-    ".fab:hover~.tip,.fab:focus-visible~.tip{opacity:1;transform:none}" +
+    // Hoverable (SC 1.4.13): once shown, the pointer can move onto it without
+    // it vanishing. Kept pointer-events:none while hidden so it never blocks
+    // the host page underneath.
+    ".tip:hover,.fab:hover~.tip,.tip.shown{opacity:1;transform:none;pointer-events:auto}" +
+    ".fab:focus-visible~.tip{opacity:1;transform:none;pointer-events:auto}" +
     // Suppress it when the panel is open or we're mid-pin: the label no longer
     // says "Loopback", so explaining Loopback would be noise.
-    ".panel.open~.tip,.fab.pinmode~.tip{opacity:0!important;transform:translateY(4px)!important}" +
+    ".panel.open~.tip,.fab.pinmode~.tip,.tip.dismissed{opacity:0!important;transform:translateY(4px)!important;pointer-events:none!important}" +
     ".panel{position:fixed;bottom:64px;right:18px;z-index:2147483000;width:290px;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;display:none;color:var(--lb-fg)}" +
     ".panel.open{display:block}" +
     ".panel h3{margin:0 0 8px;font-size:13px;font-weight:600}" +
@@ -412,8 +416,21 @@
   fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
   fab.setAttribute("aria-expanded", "false");
   fab.setAttribute("aria-controls", "lb-panel");
+  fab.setAttribute("aria-describedby", "lb-tip");
   var tip = mk("div", "tip", TAGLINE);
   tip.setAttribute("role", "tooltip");
+  tip.id = "lb-tip";
+  // Dismissable (SC 1.4.13): Escape hides it and focus stays exactly where it
+  // was. Re-arms as soon as the pointer or focus leaves the FAB.
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") tip.classList.add("dismissed");
+  });
+  fab.addEventListener("mouseleave", function () {
+    tip.classList.remove("dismissed");
+  });
+  fab.addEventListener("blur", function () {
+    tip.classList.remove("dismissed");
+  });
   var panel = mk("div", "panel");
   panel.id = "lb-panel";
   panel.setAttribute("role", "group");
@@ -611,6 +628,7 @@
     fab.setAttribute("aria-label", "Loopback — " + TAGLINE);
   fab.setAttribute("aria-expanded", "false");
   fab.setAttribute("aria-controls", "lb-panel");
+  fab.setAttribute("aria-describedby", "lb-tip");
     if (highlight) highlight.remove();
     highlight = null;
     kbTargets = [];

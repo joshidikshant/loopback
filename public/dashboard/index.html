@@ -15,10 +15,14 @@
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/dashboard/assets/index-CsCeXxUE.js"></script>
-    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-bFSlqxcM.css">
+    <script type="module" crossorigin src="/dashboard/assets/index-D1cZwVaj.js"></script>
+    <link rel="stylesheet" crossorigin href="/dashboard/assets/index-DSrb3yll.css">
   </head>
   <body>
     <div id="root"></div>
+      <!-- Loopback's own queue is a Loopback surface. Same origin as the hub, so
+         the endpoint is relative and no configuration is needed. This page told
+         users to "pin it" long before it actually loaded the widget. -->
+    <script src="/widget.js" data-project="loopback"></script>
   </body>
 </html>

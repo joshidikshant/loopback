@@ -318,8 +318,15 @@ export class LoopbackStore {
     note?: string,
     author = "agent",
   ): FeedbackItem | null {
+    // `resolution` is cleared here. It used to survive a move back out of a
+    // resolved state, so an item displayed as `open` still reported
+    // resolution="verified" to the detail page and to the next agent — the
+    // trail contradicting the status it sits next to. verified/wontfix never
+    // reach this method; they route through resolve(), which sets it.
     const res = this.db
-      .prepare(`UPDATE feedback SET status = ?, updated_at = ? WHERE id = ?`)
+      .prepare(
+        `UPDATE feedback SET status = ?, resolution = NULL, updated_at = ? WHERE id = ?`,
+      )
       .run(status, nowIso(), id);
     if (res.changes === 0) return null;
     if (note) {

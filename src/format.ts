@@ -87,6 +87,26 @@ export function itemMarkdown(item: FeedbackItem): string {
       "```",
     );
   }
+  if (item.attachments?.length) {
+    lines.push(``, `## Attachments (${item.attachments.length})`, ``);
+    for (const a of item.attachments) {
+      if (a.intent === "asset") {
+        // The whole point of the `asset` intent: it is a deliverable, and the
+        // agent is the one expected to place it.
+        lines.push(
+          `- **ASSET** \`${a.name}\` (${a.mime}) — copy it into the repo at ` +
+            `\`${a.target_path ?? "(no target path given — ask the reporter)"}\` and commit it.`,
+          `  Read it from: \`${a.path}\``,
+        );
+      } else {
+        lines.push(
+          `- **reference** \`${a.name}\` (${a.mime}) — context for the fix, do NOT ship it.`,
+          `  Read it from: \`${a.path}\``,
+        );
+      }
+    }
+  }
+
   const links = Object.entries(item.links).filter(([, v]) => v !== undefined);
   if (links.length) {
     lines.push(``, `## Linked change`, ``);

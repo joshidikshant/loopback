@@ -19,5 +19,9 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+      <!-- Loopback's own queue is a Loopback surface. Same origin as the hub, so
+         the endpoint is relative and no configuration is needed. This page told
+         users to "pin it" long before it actually loaded the widget. -->
+    <script src="/widget.js" data-project="loopback"></script>
   </body>
 </html>

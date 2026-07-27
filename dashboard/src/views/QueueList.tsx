@@ -172,13 +172,13 @@ export function QueueList({
         </span>
         {/* min-w-0 lets this shrink instead of pushing the page wider than the
             viewport; w-56 alone made the flex item refuse to give ground. */}
-        <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
+        <div className="ml-auto flex w-full min-w-0 flex-1 basis-full items-center justify-end gap-2 sm:w-auto sm:basis-auto">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title, body, id…"
             aria-label="Search feedback"
-            className="h-11 w-full min-w-0 sm:w-56"
+            className="h-11 w-full min-w-40 sm:w-56"
           />
           {themeToggle}
         </div>
@@ -274,7 +274,7 @@ export function QueueList({
           it was visible and the title column started past the right edge, so a
           phone showed ids and nothing readable. A table forced through a narrow
           viewport is the wrong shape; below `sm` this is a list. */}
-      <div className="mt-4 grid gap-2 sm:hidden">
+      <div className="mt-4 grid gap-2 lg:hidden">
         {loading &&
           Array.from({ length: 4 }, (_, n) => (
             <Skeleton key={`msk-${n}`} className="h-24 w-full rounded-lg" />
@@ -333,7 +333,7 @@ export function QueueList({
       </div>
 
       {/* ---- Tablet and up: the full table ---- */}
-      <div className="mt-4 hidden rounded-lg border sm:block">
+      <div className="mt-4 hidden rounded-lg border lg:block">
         <Table>
           {/* TableCaption is the table's own accessible description, and shadcn
               renders it below the table — exactly where the loose <p> used to

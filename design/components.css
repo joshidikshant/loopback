@@ -228,6 +228,17 @@
 .lb-pin--verified    { background: var(--lb-verified);    color: var(--lb-verified-foreground); }
 .lb-pin--wontfix     { background: var(--lb-wontfix);     color: var(--lb-wontfix-foreground); }
 
+/* "This pin just changed." The reduced-motion block below resolves this to a
+   steady ring; without a base rule and keyframes here, that block was overriding
+   nothing and the default experience had no change signal at all. */
+@keyframes lb-pin-pulse {
+  from { box-shadow: 0 0 0 0 var(--ring); }
+  to   { box-shadow: 0 0 0 13px transparent; }
+}
+.lb-pin--changed {
+  animation: lb-pin-pulse 1.1s ease-out 3;
+}
+
 .lb-highlight {
   border: 2px solid var(--lb-highlight);
   border-radius: var(--radius-sm);
