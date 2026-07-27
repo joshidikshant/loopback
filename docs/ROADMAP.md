@@ -14,7 +14,13 @@ tarball is proven by installing and running it from a clean directory).
 
 - **B3 — multi-pin grouping.** Deferred until real usage demands it.
 - **B4 — session recording.** Won't build; bridge PostHog (doc 02).
-- Housekeeping (DJ-local): `claude mcp remove loopback -s project`.
+- ~~Housekeeping: `claude mcp remove loopback -s project`~~ — **withdrawn,
+  nothing to remove.** The "duplicate" is deliberate layering: the user-scope
+  entry (absolute path in `~/.claude.json`) is what makes the hub reachable
+  from every other project on this machine, and the repo's committed
+  `.mcp.json` is the product — init ships it and the repo dogfoods it. Inside
+  the repo the project entry wins; removing it via `claude mcp remove` would
+  edit a shipped file.
 
 ## Deliberate — decisions, not defects
 
