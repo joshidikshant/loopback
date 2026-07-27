@@ -72,11 +72,31 @@ const MEASURE = `(() => {
     return 0.2126*f(r) + 0.7152*f(g) + 0.0722*f(b); };
   const ratio = (a,b) => { const x = lum(a), y = lum(b);
     const [hi,lo] = x > y ? [x,y] : [y,x]; return (hi+0.05)/(lo+0.05); };
-  const bgOf = (el) => { let n = el;
+  // Alpha-COMPOSITE, do not skip. Translucent backgrounds are exactly where
+  // contrast quietly fails — shadcn's row hover is bg-muted/50 — and treating
+  // anything under 0.95 alpha as absent measured the page background instead,
+  // reporting a hovered row as clean when it was not.
+  const over = (fg, bg) => [
+    fg[0] * fg[3] + bg[0] * (1 - fg[3]),
+    fg[1] * fg[3] + bg[1] * (1 - fg[3]),
+    fg[2] * fg[3] + bg[2] * (1 - fg[3]),
+    1,
+  ];
+  const bgOf = (el) => {
+    const stack = [];
+    let n = el;
     while (n && n !== document.documentElement) {
       const c = rgb(getComputedStyle(n).backgroundColor);
-      if (c[3] > 0.95) return c; n = n.parentElement; }
-    return rgb(getComputedStyle(document.body).backgroundColor); };
+      if (c[3] > 0) stack.push(c);
+      if (c[3] >= 0.999) break;
+      n = n.parentElement;
+    }
+    const base = rgb(getComputedStyle(document.body).backgroundColor);
+    let out = base[3] >= 0.999 ? base : [255, 255, 255, 1];
+    // Composite from the bottom of the stack upward.
+    for (let i = stack.length - 1; i >= 0; i--) out = over(stack[i], out);
+    return out;
+  };
 
   // Shadow roots are opaque to querySelectorAll, so the widget — an entire
   // surface — was invisible to every scan here. Walk into open roots.
@@ -155,6 +175,15 @@ const MEASURE = `(() => {
   };
 })()`;
 
+/** How many elements the shadow-piercing scan actually reached. */
+const DEEP_COUNT = `() => {
+  let n = 0;
+  const walk = (r) => { n += r.querySelectorAll('*').length;
+    r.querySelectorAll('*').forEach((el) => { if (el.shadowRoot) walk(el.shadowRoot); }); };
+  walk(document);
+  return n;
+}`;
+
 const KILL_MOTION = `(() => {
   const s = document.createElement('style');
   s.textContent = '*,*::before,*::after{transition:none!important;animation:none!important;}';
@@ -165,9 +194,12 @@ const KILL_MOTION = `(() => {
 async function main() {
   rmSync(DB, { force: true });
   start("node", ["dist/index.js", "--http", "--port", String(PORT)], { LOOPBACK_DB: DB });
-  start("npx", ["--yes", "http-server", "demo", "-p", String(DEMO_PORT), "-s"]);
+  start(process.execPath, ["demo/serve.mjs"], {
+    DEMO_PORT: String(DEMO_PORT),
+    LOOPBACK_ENDPOINT: LB,
+  });
   await waitFor(`${LB}/queue`);
-  await waitFor(`${DEMO}/index.html`);
+  await waitFor(`${DEMO}/`);
 
   // Seed one item per STATUS and per SEVERITY, so every colour pair in the
   // design system is actually on screen when contrast is measured. Seeding a
@@ -202,6 +234,7 @@ async function main() {
   }
   const detailSeed = seeded[0];
 
+  const LB_EXPECTED = LB;
   const browser = await chromium.launch();
   try {
     // ---------- dashboard, desktop ----------
@@ -210,6 +243,30 @@ async function main() {
     await page.waitForSelector("tbody tr");
     await page.evaluate(KILL_MOTION);
     const desktop = await page.evaluate(MEASURE);
+
+    // Measure the HOVERED row too: shadcn's TableRow tints to bg-muted/50, which
+    // lowers the effective background contrast of every cell in it. The resting
+    // state was the only thing ever checked.
+    // A REAL pointer hover. Adding "bg-muted/50" as a class does nothing —
+    // Tailwind only ever generated the `hover:` variant of that utility, so the
+    // bare class has no rule behind it and the "hovered" measurement was just
+    // the resting state again.
+    // EVERY row, not the first. Severities are seeded round-robin, so hovering
+    // only `tbody tr` measured p0 and never reached p3 — the one the audit
+    // measured failing at 4.35:1.
+    const rowCount = await page.evaluate(() => document.querySelectorAll("tbody tr").length);
+    const hoverFails = [];
+    for (let r = 0; r < rowCount; r++) {
+      await page.hover(`tbody tr:nth-child(${r + 1})`);
+      await page.waitForTimeout(40);
+      const h = await page.evaluate(MEASURE);
+      hoverFails.push(...h.contrastLight, ...h.contrastDark);
+    }
+    await page.mouse.move(0, 0);
+    check(hoverFails.length === 0,
+      `queue: no contrast failures on any of ${rowCount} HOVERED rows${
+        hoverFails.length ? ` — ${JSON.stringify(hoverFails.slice(0, 4))}` : ""
+      }`);
 
     check(desktop.contrastLight.length === 0,
       `queue: no contrast failures in light${desktop.contrastLight.length ? ` — ${JSON.stringify(desktop.contrastLight)}` : ""}`);
@@ -268,8 +325,10 @@ async function main() {
 
     // ---------- widget, on a host page ----------
     const wpage = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await wpage.goto(`${DEMO}/index.html`);
+    await wpage.goto(`${DEMO}/`);
     await wpage.waitForFunction(() => !!window.__loopback);
+    const boundTo = await wpage.evaluate(() => window.__loopback.endpoint);
+    check(boundTo === LB_EXPECTED, `widget is bound to THIS run's hub (${boundTo})`);
     const widget = await wpage.evaluate(() => {
       const host = [...document.querySelectorAll("*")].find((e) => e.shadowRoot);
       const sr = host.shadowRoot;
@@ -308,11 +367,26 @@ async function main() {
     // dashboard, which has no shadow roots, so the widget's own colours and
     // target sizes had never been measured by anything.
     await wpage.evaluate(KILL_MOTION);
-    const widgetMeasured = await wpage.evaluate(MEASURE);
-    check(widgetMeasured.contrastLight.length === 0,
-      `widget: no contrast failures${widgetMeasured.contrastLight.length ? ` — ${JSON.stringify(widgetMeasured.contrastLight)}` : ""}`);
-    check(widgetMeasured.smallTargets.length === 0,
-      `widget: every target clears 24x24${widgetMeasured.smallTargets.length ? ` — ${JSON.stringify(widgetMeasured.smallTargets)}` : ""}`);
+    // The widget owns its theme via prefers-color-scheme (deliberately — it must
+    // stay legible on any host page), so MEASURE's .dark class toggle does
+    // nothing to it. Drive the media feature instead, or its dark palette is
+    // never exercised at all.
+    for (const scheme of ["light", "dark"]) {
+      await wpage.emulateMedia({ colorScheme: scheme });
+      await wpage.waitForTimeout(80);
+      const m = await wpage.evaluate(MEASURE);
+      const scanned = await wpage.evaluate(`(${DEEP_COUNT})()`);
+      // Guard the guard: the widget renders pins and badges only when the hub
+      // has items for this route. A scan that reached almost nothing proves
+      // nothing, and that is exactly how this assertion passed while measuring
+      // a foreign database.
+      check(scanned >= 20, `widget (${scheme}): scan reached the widget UI (${scanned} elements)`);
+      check(m.contrastLight.length === 0,
+        `widget (${scheme}): no contrast failures${m.contrastLight.length ? ` — ${JSON.stringify(m.contrastLight)}` : ""}`);
+      check(m.smallTargets.length === 0,
+        `widget (${scheme}): every target clears 24x24${m.smallTargets.length ? ` — ${JSON.stringify(m.smallTargets)}` : ""}`);
+    }
+    await wpage.emulateMedia({ colorScheme: "light" });
 
     // ---------- reduced motion is honoured where the motion actually is ----------
     const rm = await browser.newPage({ viewport: { width: 1280, height: 800 } });

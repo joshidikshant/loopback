@@ -78,15 +78,18 @@
   --lb-wontfix: oklch(0.551 0.027 264.364);
   --lb-wontfix-foreground: oklch(0.985 0 0);
 
-  /* Severity — rendered as TEXT on --background, so each must clear 4.5:1 there.
+  /* Severity — rendered as TEXT inside queue rows, which tint on hover
+     (shadcn's TableRow is hover:bg-muted/50). These clear 4.5:1 against the
+     HOVERED background, not merely the resting page: measured at rest they
+     passed while p1 sat at 4.49 and p3 at 4.35 under the cursor.
      Four levels cannot stay separable by lightness alone once they are all AA
-     compliant (a compliant p3 lands within 0.01 of p2), so the scale carries a
-     second axis: weight. See severityClass/severityWeight in the dashboard.
+     compliant, so the scale carries a second axis: weight. See
+     severityClass/severityWeight in the dashboard.
      p0 reuses destructive so "critical" reads the same everywhere. */
   --lb-p0: oklch(0.577 0.245 27.325);
-  --lb-p1: oklch(0.57 0.179 58.318);
-  --lb-p2: oklch(0.5 0 0);
-  --lb-p3: oklch(0.566 0 0);
+  --lb-p1: oklch(0.55 0.179 58.318);
+  --lb-p2: oklch(0.48 0 0);
+  --lb-p3: oklch(0.54 0 0);
 
   /* The pin: an anchor drawn on someone else's page. 24px is the SC 2.5.8
      minimum target size — the widget hardcoded 24 while this token still said
@@ -149,8 +152,8 @@
 
   --lb-p0: oklch(0.704 0.191 22.216);
   --lb-p1: oklch(0.828 0.189 84.429);
-  --lb-p2: oklch(0.78 0 0);
-  --lb-p3: oklch(0.62 0 0);
+  --lb-p2: oklch(0.8 0 0);
+  --lb-p3: oklch(0.66 0 0);
 
   --lb-highlight: oklch(0.707 0.165 254.624);
   --lb-shadow-sm: 0 2px 8px rgb(0 0 0 / 0.5);

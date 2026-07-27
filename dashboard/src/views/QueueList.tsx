@@ -154,7 +154,9 @@ export function QueueList({
     <>
       <header className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-xl font-semibold tracking-tight">
-          Loopback queue{filters.project ? ` — ${filters.project}` : ""}
+          <span className="break-all">
+            Loopback queue{filters.project ? ` — ${filters.project}` : ""}
+          </span>
         </h1>
         {/* `all.length` is what we fetched, not what exists. At the cap those
             differ, and reporting the cap as the total is a lie — say "first N"
@@ -302,13 +304,13 @@ export function QueueList({
               </div>
               <div className="font-medium break-all">{i.title}</div>
               <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                <span>{i.project}</span>
+                <span className="break-all">{i.project}</span>
                 <span aria-hidden>·</span>
                 <span>{age(i.created_at)}</span>
                 {i.assignee_agent && (
                   <>
                     <span aria-hidden>·</span>
-                    <span>{i.assignee_agent}</span>
+                    <span className="break-all">{i.assignee_agent}</span>
                   </>
                 )}
               </div>

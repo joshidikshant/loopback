@@ -173,12 +173,20 @@ const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-
 // outline, box-shadow or color-mix() is the same drift.
 const COLOUR_LITERAL = /(oklch\(\s*[\d.]|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
 const hardcoded = [];
+// Scan DECLARATIONS, not lines. The previous version only matched a line that
+// *starts* with a declaration — and every rule in this file that carries a
+// colour is written on one line (`.lb-pin--fixed { background: …; color: …; }`),
+// so all 12 badge/pin rules and all 4 severity rules were skipped. The check
+// could not see the exact block its own header cites as its reason to exist.
 componentsCss.split("\n").forEach((line, n) => {
-  const decl = line.match(/^\s*([\w-]+)\s*:\s*(.+?);/);
-  if (!decl) return;
-  // `rgb(0 0 0 / 0.18)` inside a shadow TOKEN is fine — tokens.css owns those.
-  if (!COLOUR_LITERAL.test(decl[2])) return;
-  hardcoded.push([null, decl[1], decl[2].trim(), n + 1]);
+  // Strip selectors and braces, then split the remaining declarations.
+  const body = line.replace(/^[^{]*\{/, "").replace(/\}\s*$/, "");
+  for (const decl of body.split(";")) {
+    const m = decl.match(/^\s*([\w-]+)\s*:\s*(.+)$/);
+    if (!m) continue;
+    if (!COLOUR_LITERAL.test(m[2])) continue;
+    hardcoded.push([null, m[1], m[2].trim(), n + 1]);
+  }
 });
 if (hardcoded.length === 0) {
   pass("design/components.css uses tokens throughout — no literal colours");

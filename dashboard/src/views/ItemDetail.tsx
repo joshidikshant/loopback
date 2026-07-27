@@ -339,7 +339,7 @@ export function ItemDetail({
       )}
 
       <Card className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3 p-4">
-        <Section label="Project">{item.project}</Section>
+        <Section label="Project"><span className="break-all">{item.project}</span></Section>
         <Section label="Severity / type">
           <span className={`font-mono text-xs ${severityClass[item.severity]} ${severityWeight[item.severity]}`}>
             {item.severity}
@@ -606,7 +606,7 @@ export function ItemDetail({
                 a log; separators between entries read as one, side-tabs read as
                 several unrelated callouts. */}
             {item.comments.map((c) => (
-              <div key={c.id} className="py-2 not-last:border-b">
+              <div key={c.id} className="min-w-0 py-2 not-last:border-b">
                 <div className="text-xs text-muted-foreground">
                   {c.author} · {c.created_at}
                 </div>

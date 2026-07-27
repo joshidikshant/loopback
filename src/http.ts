@@ -17,7 +17,8 @@
 import express from "express";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { join, dirname } from "node:path";
+import { join, dirname, extname } from "node:path";
+import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -355,6 +356,38 @@ export function createHttpApp(
    * `npx loopback-mcp-server` still needs no React, no Tailwind and no build.
    */
   const DASHBOARD_DIR = join(__dirname, "..", "public", "dashboard");
+
+  /**
+   * gzip the dashboard bundle. It is ~410KB raw and ~127KB gzipped — a 3.2x
+   * difference that goes unnoticed on loopback but not over Wi-Fi, and
+   * `--host 0.0.0.0` for phone testing is a documented, promoted mode.
+   *
+   * Hand-rolled on node:zlib rather than pulling in `compression`: the hub has
+   * three runtime dependencies and this is fifteen lines.
+   */
+  app.use("/dashboard", (req, res, next) => {
+    const accepts = String(req.headers["accept-encoding"] ?? "");
+    if (!/\bgzip\b/.test(accepts) || !/\.(js|css|html|json|svg|map)$/.test(req.path)) {
+      return next();
+    }
+    const file = join(DASHBOARD_DIR, req.path);
+    let body: Buffer;
+    try {
+      body = gzipSync(readFileSync(file));
+    } catch {
+      return next(); // missing file, or unreadable — let express.static answer
+    }
+    res.setHeader("Content-Encoding", "gzip");
+    res.setHeader("Vary", "Accept-Encoding");
+    // Vite hashes content into these filenames, so a given URL's bytes never
+    // change. `max-age=0` forced a revalidation round-trip on every load.
+    if (req.path.startsWith("/assets/")) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
+    res.type(extname(req.path));
+    res.end(body);
+  });
+
   app.use("/dashboard", express.static(DASHBOARD_DIR, { index: false }));
 
   /** /queue and /queue/:id are both the SPA; it routes on the path itself. */

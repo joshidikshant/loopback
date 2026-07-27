@@ -349,7 +349,7 @@
     ".b-verified{background:var(--lb-verified);color:var(--lb-verified-fg)}" +
     ".b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
     ".hl{position:fixed;left:0;top:0;will-change:transform;z-index:2147482998;pointer-events:none;border:2px solid var(--lb-highlight);border-radius:" + RADIUS_SM + ";background:color-mix(in oklch,var(--lb-highlight) 10%,transparent)}" +
-    ".form{position:fixed;z-index:2147483001;width:300px;max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
+    ".form{position:fixed;z-index:2147483001;width:min(300px,calc(100vw - 16px));max-height:min(72vh,460px);overflow:auto;background:var(--lb-bg);border:1px solid var(--lb-border);border-radius:var(--lb-radius);box-shadow:var(--lb-shadow-lg);padding:12px;color:var(--lb-fg)}" +
     // 16px, not 13px: iOS Safari zooms the viewport on focus for anything under
     // 16px, and this panel is position:fixed — the zoom leaves it half off-screen
     // with no way back. Font size here is a layout constraint, not taste.
@@ -655,9 +655,19 @@
     // screen reader the rest of the page is unavailable when it is still fully
     // reachable — worse than not claiming it.
     form.setAttribute("aria-label", "File Loopback feedback");
-    form.style.left = Math.max(8, Math.min(x, window.innerWidth - 320)) + "px";
-    form.style.top =
-      Math.max(8, Math.min(y + 10, window.innerHeight - Math.min(window.innerHeight * 0.72, 460) - 20)) + "px";
+    function placeForm() {
+      var w = form.offsetWidth || 300;
+      var h = form.offsetHeight || Math.min(window.innerHeight * 0.72, 460);
+      // Clamp to the CURRENT viewport, and never below 8px from either edge.
+      // Math.max(8, …) has to come last or a viewport narrower than the form
+      // produces a negative left and pushes it off the screen entirely.
+      form.style.left = Math.max(8, Math.min(x - w / 2, window.innerWidth - w - 8)) + "px";
+      form.style.top = Math.max(8, Math.min(y + 10, window.innerHeight - h - 8)) + "px";
+    }
+    placeForm();
+    // Reposition on resize and rotation. Without this the panel kept the
+    // coordinates it was born with.
+    window.addEventListener("resize", placeForm);
 
     // Remember who opened it so focus can go back there on close.
     // root.activeElement, NOT document.activeElement: when focus is inside a
@@ -748,6 +758,7 @@
     function closeForm() {
       form.remove();
       document.removeEventListener("keydown", onFormKey, true);
+      window.removeEventListener("resize", placeForm);
       // Send focus back where it came from; otherwise it falls to <body> and a
       // keyboard user restarts from the top of the page. Only trust the opener
       // if it is still in the shadow tree — otherwise fall back to the FAB,
@@ -927,6 +938,7 @@
       })
       .then(function (data) {
         var items = data.items || [];
+        renderTick++;
         window.__loopback.pins = items;
         announceChanges(items);
         renderPins(items);
@@ -937,21 +949,37 @@
 
   // Pin elements are pooled by feedback id and reused across renders.
   var pinPool = {};
+  // Bumped once per hydration poll. Negative cache entries live for one tick,
+  // so a re-added element is picked up within 10s rather than never.
+  var renderTick = 0;
   // Resolved targets are cached too. Pooling the ELEMENT alone still left up to
   // 50 full-document `querySelector` matches per scroll frame against the host
   // page — once layout thrash was gone, selector matching became the dominant
   // per-frame cost. Cache the node and re-resolve only when it leaves the DOM.
   var targetCache = {};
 
+  // Misses are cached too, briefly. /feedback is fetched with no status filter,
+  // so long-resolved items whose anchor a fix deleted stay in the payload
+  // forever — and an uncached miss re-ran a full-document querySelector on every
+  // host scroll frame, exactly the cost this cache exists to remove, growing
+  // with project age. Re-checked each poll in case the element comes back.
+  var missUntil = {};
   function resolveTarget(item) {
     var cached = targetCache[item.id];
     if (cached && cached.isConnected) return cached;
+    if (missUntil[item.id] > renderTick) return null;
     var found = null;
     try {
       found = document.querySelector(item.dom_selector);
     } catch (e) {}
-    if (found) targetCache[item.id] = found;
-    else delete targetCache[item.id];
+    if (found) {
+      targetCache[item.id] = found;
+      delete missUntil[item.id];
+    } else {
+      delete targetCache[item.id];
+      // Skip this selector until the next hydration pass.
+      missUntil[item.id] = renderTick;
+    }
     return found;
   }
 
@@ -995,6 +1023,7 @@
         pinPool[id].remove();
         delete pinPool[id];
         delete targetCache[id];
+        delete missUntil[id];
       }
     }
     pinEls = [];

@@ -149,6 +149,30 @@ if (theme) {
   }
   // Guard the guard: a parse that compares nothing must not report a match.
   assert(compared > 0, `published theme actually declares tokens to compare (${compared})`);
+
+  // A published recipe must be able to RENDER from the published theme. The
+  // theme shipped only the --lb-* status tokens while loopback-components
+  // consumes 45 variables, so an installing project got pins at 6x13 instead of
+  // 24x24, no shadows, and Times instead of the mono face. The gate iterated
+  // the theme's own keys and so could never notice what the CSS needed.
+  const consumers = registry.items.filter((i) =>
+    (i.files ?? []).some((f) => f.path.endsWith(".css")),
+  );
+  for (const item of consumers) {
+    for (const file of item.files ?? []) {
+      if (!file.path.endsWith(".css")) continue;
+      const text = readFileSync(join(ROOT, file.path), "utf-8");
+      const needed = [...new Set([...text.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]))];
+      const supplied = new Set(Object.keys(theme.cssVars?.light ?? {}).map((k) => `--${k}`));
+      const absent = needed.filter((n) => !supplied.has(n));
+      assert(
+        absent.length === 0,
+        `published theme supplies every variable ${item.name} consumes${
+          absent.length ? ` (missing ${absent.length}: ${absent.slice(0, 6).join(", ")}…)` : ` (${needed.length})`
+        }`,
+      );
+    }
+  }
   assert(
     drifted.length === 0,
     `published theme tokens match design/tokens.css per theme block${drifted.length ? ` (drifted: ${drifted.join(", ")})` : ` (${compared} compared)`}`,

@@ -225,7 +225,7 @@ Full matrix, native snippets (Swift/Kotlin/C#/shell), and the honest edges:
 
 ## The widget
 
-~19KB of dependency-free vanilla JS in a shadow-DOM host — it never fights
+~46KB (15KB gzipped) of dependency-free vanilla JS in a shadow-DOM host — it never fights
 your app's CSS or framework.
 
 - **Capture**: pin mode highlights elements on hover; a click opens a
@@ -371,7 +371,7 @@ interaction-layer analysis, technical path). Calls made in this build:
 6. **`/ingest` accepts unknown extra fields** (no `.strict()`) — older hubs
    must not reject newer widgets; forward compatibility beats strictness at
    the ingestion boundary.
-7. **Widget is ~19KB, not the ~10KB sketch** — ring buffers, failure-body
+7. **Widget is ~46KB / 15KB gzipped, not the ~10KB sketch** — ring buffers, failure-body
    capture, live pins, and the walkthrough earn their bytes; still zero deps,
    one file.
 8. **Marker-based merges** — `init` re-runs are byte-idempotent; files a human
