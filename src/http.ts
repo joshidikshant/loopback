@@ -56,8 +56,12 @@ function selfOrigin(req: express.Request): string {
  * — measured at 16.6MB for `limit=1000`, the limit the dashboard actually asks
  * for — because `pinProjection` was only applied to untrusted origins, and a
  * same-origin GET sends no Origin header, so `isTrusted` is true for the very
- * caller that needs the least. gzip fixed the wire and nothing else: the
- * JSON.parse cost and the retained heap were untouched.
+ * caller that needs the least.
+ *
+ * The projection alone recovered WIRE bytes only — `SELECT *` and five
+ * JSON.parse calls per row ran before it, so the parse cost and the retained
+ * heap survived. `store.list(filters, lean)` now drops those columns at the SQL
+ * level, which is what actually removes the work.
  *
  * `body` stays because the queue searches it client-side. `console`, `network`,
  * `repro_steps`, `extra` and `comments` — the bulk, and the parts carrying up
@@ -442,7 +446,11 @@ export function createHttpApp(
       return;
     }
     const { response_format: _rf, ...filters } = parsed.data;
-    const result = store.list(filters);
+    // Decide leanness BEFORE the query, so the heavy JSON columns are never
+    // read or parsed. Projecting after the fact only ever saved wire bytes.
+    const wantsLean =
+      req.query.view === "pins" || req.query.view === "list" || !isTrusted(req);
+    const result = store.list(filters, wantsLean);
     if (!isTrusted(req)) {
       // A foreign origin (i.e. the widget on a host app) gets only what pins
       // need. `extra` in particular carries captured response bodies, which

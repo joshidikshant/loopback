@@ -296,7 +296,55 @@ async function main() {
       drifted.length ? ` — drifted: ${JSON.stringify(drifted)}` : ` (${placement.length} checked)`
     }`,
   );
-  console.log("✅ reload: pin is green/verified with agent + PR attached — loop closed visibly");
+  // The single rendering this whole product is about, and nothing asserted it.
+  // The line below has always claimed "pin is green" after checking a JSON
+  // status string and a bounding box. Measure the actual painted colour, and
+  // require that `verified` is the EARNED green — distinct from the provisional
+  // `fixed` one, which is the distinction the token split exists to make.
+  const green = await page.evaluate(() => {
+    const root = document.querySelector("#loopback-widget-host").shadowRoot;
+    const pin = root.querySelector(".pin.b-verified");
+    if (!pin) return { found: false };
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 1;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const rgb = (c) => {
+      ctx.fillStyle = "#f0f";
+      ctx.fillStyle = c;
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    };
+    const painted = rgb(getComputedStyle(pin).backgroundColor);
+    const wrap = root.querySelector(".lb-root");
+    const verified = rgb(getComputedStyle(wrap).getPropertyValue("--lb-verified").trim());
+    const fixed = rgb(getComputedStyle(wrap).getPropertyValue("--lb-fixed").trim());
+    const same = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 2);
+    return {
+      found: true,
+      painted,
+      isVerifiedGreen: same(painted, verified),
+      isDistinctFromFixed: !same(verified, fixed),
+      // Green means the green channel actually dominates — a token renamed to a
+      // red would still "match its token" without this.
+      greenDominates: painted[1] > painted[0] && painted[1] > painted[2],
+    };
+  });
+  assert(green.found, "a verified pin is rendered on the page");
+  assert(
+    green.isVerifiedGreen,
+    `the verified pin paints --lb-verified (rgb ${green.painted})`,
+  );
+  assert(
+    green.greenDominates,
+    `and it is actually GREEN — green channel dominates (rgb ${green.painted})`,
+  );
+  assert(
+    green.isDistinctFromFixed,
+    "the earned green is distinct from the provisional `fixed` green",
+  );
+  console.log("✅ reload: pin is MEASURABLY green/verified with agent + PR attached — loop closed visibly");
 
   // 6. Widget hardening (regressions found dogfooding on a real Next.js site)
   log("hardening: dark color-scheme + host token isolation");

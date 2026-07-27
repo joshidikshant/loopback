@@ -318,7 +318,10 @@ const CLASS_LITERAL = new RegExp(
 );
 const appFiles = readdirSync(join(ROOT, "dashboard", "src"), { recursive: true })
   .filter((f) => typeof f === "string" && /\.tsx?$/.test(f))
-  .filter((f) => !f.includes("components/ui/"))
+  // No blanket exclusion. This used to skip components/ui/ entirely on the
+  // stated grounds that those files are "upstream verbatim" — false for
+  // button.tsx and badge.tsx, both hand-patched off stock, and that is the pair
+  // whose dark-mode contrast then broke unseen.
   .map((f) => join("dashboard", "src", f));
 let appScanned = 0;
 for (const rel of appFiles) {
