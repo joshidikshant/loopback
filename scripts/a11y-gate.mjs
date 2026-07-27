@@ -278,6 +278,66 @@ async function main() {
       `queue: every control has an accessible name${desktop.unnamed.length ? ` — ${JSON.stringify(desktop.unnamed)}` : ""}`);
     check(desktop.hasMain, "queue: has a <main> landmark");
 
+    // SC 1.4.11: the focus INDICATOR itself needs 3:1 against what it sits on.
+    // Nothing checked it, and shadcn's stock ring is `ring-ring/50` — half
+    // opacity over a mid-grey --ring, which lands near 1.5:1 on the very
+    // controls that are the keyboard-only route into a row.
+    // Real keyboard focus: :focus-visible is what the outline rule keys on, and
+    // element.focus() does not set it. Tab until a button in the table has it.
+    await page.evaluate(() => document.body.focus());
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press("Tab");
+      const onButton = await page.evaluate(
+        () => document.activeElement?.tagName === "BUTTON" &&
+              document.activeElement.matches(":focus-visible"),
+      );
+      if (onButton) break;
+    }
+    const focusRing = await page.evaluate(() => {
+      const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      const rgb = (c) => { ctx.fillStyle = "#f0f"; ctx.fillStyle = c;
+        ctx.clearRect(0,0,1,1); ctx.fillRect(0,0,1,1);
+        const d = ctx.getImageData(0,0,1,1).data; return [d[0],d[1],d[2],d[3]/255]; };
+      const lum = ([r,g,b]) => { const f = (c) => { c/=255;
+        return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+        return 0.2126*f(r)+0.7152*f(g)+0.0722*f(b); };
+      const over = (fg,bg) => [0,1,2].map(i => fg[i]*fg[3] + bg[i]*(1-fg[3])).concat(1);
+      const ratio = (a,b) => { const x=lum(a),y=lum(b); const [hi,lo]=x>y?[x,y]:[y,x];
+        return (hi+0.05)/(lo+0.05); };
+
+      // Focus a real control and read what is actually painted around it.
+      const target = document.activeElement;
+      if (!target || target === document.body) return null;
+      const measure = () => {
+        const cs = getComputedStyle(target);
+        const bg = rgb(getComputedStyle(document.body).backgroundColor);
+        const width = parseFloat(cs.outlineWidth) || 0;
+        const style = cs.outlineStyle;
+        const colour = rgb(cs.outlineColor);
+        return {
+          width, style,
+          ratio: +ratio(over(colour, bg), bg).toFixed(2),
+        };
+      };
+      const root = document.documentElement;
+      root.classList.remove("dark"); void document.body.offsetHeight;
+      const light = measure();
+      root.classList.add("dark"); void document.body.offsetHeight;
+      const dark = measure();
+      root.classList.remove("dark"); void document.body.offsetHeight;
+      return { light, dark };
+    });
+    for (const theme of ["light", "dark"]) {
+      const f = focusRing?.[theme];
+      check(
+        !!f && f.style !== "none" && f.width >= 1 && f.ratio >= 3,
+        `queue (${theme}): focus indicator is painted and clears 3:1 (SC 1.4.11) — ${
+          f ? `${f.width}px ${f.style}, ${f.ratio}:1` : "no focusable control found"
+        }`,
+      );
+    }
+
     // ---------- dashboard, phone ----------
     await page.setViewportSize({ width: 375, height: 812 });
     await page.waitForTimeout(150);

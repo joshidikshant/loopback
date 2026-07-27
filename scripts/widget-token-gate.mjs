@@ -171,14 +171,35 @@ for (const [theme, source] of [
 const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-8");
 // Any declaration, not just color/background: a literal hiding in a border,
 // outline, box-shadow or color-mix() is the same drift.
-const COLOUR_LITERAL = /(oklch\(\s*[\d.]|#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\()/;
+const NAMED = "white|black|red|green|blue|gray|grey|silver|maroon|olive|lime|aqua|teal|navy|fuchsia|purple|orange|yellow|pink|brown|cyan|magenta|gold|beige|ivory|coral|salmon|khaki|indigo|violet|tan|azure";
+const COLOUR_LITERAL = new RegExp(
+  "(oklch\\(\\s*[\\d.]|oklab\\(|lab\\(|lch\\(|color\\(|#[0-9a-fA-F]{3,8}\\b|\\brgba?\\(|\\bhsla?\\(|\\b(?:" + NAMED + ")\\b)",
+);
 const hardcoded = [];
 // Scan DECLARATIONS, not lines. The previous version only matched a line that
 // *starts* with a declaration — and every rule in this file that carries a
 // colour is written on one line (`.lb-pin--fixed { background: …; color: …; }`),
 // so all 12 badge/pin rules and all 4 severity rules were skipped. The check
 // could not see the exact block its own header cites as its reason to exist.
-componentsCss.split("\n").forEach((line, n) => {
+// Flatten first: a per-LINE scan missed any literal sitting on the continuation
+// line of a multi-line declaration (`box-shadow: 0 2px 8px\n  rgb(...)`).
+// Track the original line number for the message.
+const flattened = [];
+{
+  let buf = "";
+  let startLine = 1;
+  componentsCss.split("\n").forEach((raw, i) => {
+    if (!buf) startLine = i + 1;
+    buf += (buf ? " " : "") + raw.trim();
+    if (raw.includes(";") || raw.includes("}")) {
+      flattened.push([buf, startLine]);
+      buf = "";
+    }
+  });
+  if (buf) flattened.push([buf, startLine]);
+}
+flattened.forEach(([line, lineNo]) => {
+  const n = lineNo - 1;
   // Strip selectors and braces, then split the remaining declarations.
   const body = line.replace(/^[^{]*\{/, "").replace(/\}\s*$/, "");
   for (const decl of body.split(";")) {

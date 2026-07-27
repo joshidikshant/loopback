@@ -17,7 +17,7 @@
 import express from "express";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { join, dirname, extname } from "node:path";
+import { join, dirname, extname, resolve, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -370,7 +370,17 @@ export function createHttpApp(
     if (!/\bgzip\b/.test(accepts) || !/\.(js|css|html|json|svg|map)$/.test(req.path)) {
       return next();
     }
-    const file = join(DASHBOARD_DIR, req.path);
+    // CONTAINMENT. `join(DASHBOARD_DIR, req.path)` alone is a path traversal:
+    // `/dashboard/../../package.json` resolved outside the served directory and
+    // returned 200 with the repo's own file, gzipped. express.static does this
+    // check internally, which is exactly why hand-rolling in front of it is
+    // where the hole appeared. Resolve, then require the prefix.
+    const file = resolve(DASHBOARD_DIR, "." + req.path);
+    const root = resolve(DASHBOARD_DIR);
+    if (file !== root && !file.startsWith(root + sep)) {
+      res.status(403).type("text/plain").send("Forbidden");
+      return;
+    }
     let body: Buffer;
     try {
       body = gzipSync(readFileSync(file));

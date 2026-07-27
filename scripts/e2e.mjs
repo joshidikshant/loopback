@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { request as httpRequest } from "node:http";
 import { chromium } from "playwright";
 
 // Dedicated E2E ports — never the hub's 7077/5173, so a running central
@@ -544,6 +545,38 @@ async function main() {
     (detached.attachments?.length ?? 0) === 0,
     "confirming actually detaches it",
   );
+
+  // The dashboard gzip middleware resolves a filesystem path from the URL. An
+  // earlier version did `join(DIR, req.path)` with no containment and served
+  // the repo's own package.json, gzipped, with a 200.
+  log("dashboard asset route refuses path traversal");
+  // Raw socket, NOT fetch(): fetch normalises `../` away client-side, so a test
+  // written with it never sends the traversal at all and passes against a
+  // genuinely vulnerable server. Verified — it did.
+  const rawGet = (path) =>
+    new Promise((resolvePromise, rejectPromise) => {
+      const req = httpRequest(
+        { host: "127.0.0.1", port: LB_PORT, path, method: "GET", headers: { "Accept-Encoding": "gzip" } },
+        (res) => {
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () =>
+            resolvePromise({ status: res.statusCode, bytes: Buffer.concat(chunks).length }),
+          );
+        },
+      );
+      req.on("error", rejectPromise);
+      req.end();
+    });
+  for (const attack of [
+    "/dashboard/../../package.json",
+    "/dashboard/../../../etc/hosts",
+    "/dashboard/..%2f..%2fpackage.json",
+  ]) {
+    const res = await rawGet(attack);
+    assert(res.status >= 400, `traversal refused: ${attack} (got ${res.status}, ${res.bytes}B)`);
+  }
+  assert(true, "the dashboard asset route is contained to its own directory");
 
   log("cross-origin write is refused");
   // The server is unauthenticated with wide-open CORS so the widget can post

@@ -278,7 +278,7 @@
     "--lb-muted:oklch(0.97 0 0);--lb-muted-fg:oklch(0.556 0 0);" +
     "--lb-border:oklch(0.922 0 0);--lb-input:oklch(0.922 0 0);" +
     "--lb-primary:oklch(0.205 0 0);--lb-primary-fg:oklch(0.985 0 0);" +
-    "--lb-ring:oklch(0.708 0 0);--lb-radius:0.625rem;"+
+    "--lb-ring:oklch(0.45 0 0);--lb-radius:0.625rem;"+
     "--lb-pin-size:24px;--lb-pin-radius:999px 999px 999px 4px;" +
     "--lb-open:oklch(0.555 0.163 48.998);--lb-open-fg:oklch(0.985 0 0);" +
     "--lb-triaged:oklch(0.476 0.113 61.907);--lb-triaged-fg:oklch(0.985 0 0);" +
@@ -295,7 +295,7 @@
     "--lb-muted:oklch(0.269 0 0);--lb-muted-fg:oklch(0.708 0 0);" +
     "--lb-border:oklch(1 0 0/10%);--lb-input:oklch(1 0 0/15%);" +
     "--lb-primary:oklch(0.922 0 0);--lb-primary-fg:oklch(0.205 0 0);" +
-    "--lb-ring:oklch(0.556 0 0);" +
+    "--lb-ring:oklch(0.85 0 0);" +
     "--lb-open:oklch(0.828 0.189 84.429);--lb-open-fg:oklch(0.205 0 0);" +
     "--lb-triaged:oklch(0.646 0.132 68);--lb-triaged-fg:oklch(0.205 0 0);" +
     "--lb-in-progress:oklch(0.707 0.165 254.624);--lb-in-progress-fg:oklch(0.205 0 0);" +
@@ -967,7 +967,9 @@
   function resolveTarget(item) {
     var cached = targetCache[item.id];
     if (cached && cached.isConnected) return cached;
-    if (missUntil[item.id] > renderTick) return null;
+    // Equality, not >. A miss recorded during tick N is skipped for the rest
+    // of tick N and re-checked once the next hydration poll bumps the tick.
+    if (missUntil[item.id] === renderTick) return null;
     var found = null;
     try {
       found = document.querySelector(item.dom_selector);

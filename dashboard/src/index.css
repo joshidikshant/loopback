@@ -79,3 +79,18 @@
     }
   }
 }
+
+/* A solid, full-opacity focus indicator.
+   shadcn's stock ring is `ring-ring/50` — half opacity — which measured 1.54:1
+   against the page on the link-style buttons that are the ONLY keyboard route
+   into a queue row. SC 1.4.11 wants 3:1, and a 50% ring cannot reach it: pure
+   black at 50% over white tops out at 3.95:1.
+   DELIBERATELY UNLAYERED. shadcn's components carry `outline-none`, which lives
+   in Tailwind's utilities layer and beats anything in @layer base — the same
+   rule inside base measured `outline-style: none` and did nothing. Unlayered
+   declarations outrank every layer, which is exactly what a focus indicator
+   needs to be. */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
