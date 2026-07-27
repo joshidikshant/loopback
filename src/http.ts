@@ -8,7 +8,7 @@
  * them. So CORS is granted to exactly the three routes the widget needs from a
  * foreign origin (/ingest, /feedback, /widget.js) and nowhere else; /feedback
  * cross-origin returns the pin projection only; and everything that reads full
- * context or changes state — including /mcp, which carries all nine tools —
+ * context or changes state — including /mcp, which carries all ten tools —
  * requires an origin pinned at startup from the bind config.
  *
  * SSE is deliberately not offered (deprecated in Claude Code, unsupported in Codex).
@@ -118,7 +118,7 @@ export function createHttpApp(
    *
    * CORS has to stay open for `POST /ingest` — the widget reports from whatever
    * origin the host app runs on, and that is an append-only intake. It must not
-   * extend one inch further: `/mcp` exposes all nine tools, so leaving it open
+   * extend one inch further: `/mcp` exposes all ten tools, so leaving it open
    * let any page in the operator's browser read every project's queue and
    * silently resolve items. Browsers always attach Origin cross-origin, so this
    * rejects foreign pages while local tooling (curl, MCP clients) still works.

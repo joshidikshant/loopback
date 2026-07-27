@@ -21,7 +21,7 @@
  * Run: node scripts/a11y-gate.mjs
  */
 import { spawn } from "node:child_process";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
@@ -31,6 +31,7 @@ const DEMO_PORT = Number(process.env.LOOPBACK_A11Y_DEMO_PORT || 5291);
 const LB = `http://127.0.0.1:${PORT}`;
 const DEMO = `http://127.0.0.1:${DEMO_PORT}`;
 const DB = join(tmpdir(), `loopback-a11y-${process.pid}.db`);
+const ROOT = process.cwd();
 
 const children = [];
 let failures = 0;
@@ -580,6 +581,58 @@ async function main() {
         `widget (${scheme}): every target clears 24x24${m.smallTargets.length ? ` — ${JSON.stringify(m.smallTargets)}` : ""}`);
     }
     await wpage.emulateMedia({ colorScheme: "light" });
+
+    // ---------- the PUBLISHED vanilla recipe ----------
+    // design/components.css is shipped to adopters as @loopback/loopback-components
+    // and no gate has ever rendered it — which is how .lb-sev--p0 came to measure
+    // 4.38:1 on a hovered .lb-table row while every other surface was clean.
+    const recipe = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const tokensCss = readFileSync(join(ROOT, "design", "tokens.css"), "utf-8");
+    const componentsCss = readFileSync(join(ROOT, "design", "components.css"), "utf-8");
+    await recipe.setContent(`<!doctype html><html><head><style>
+      ${tokensCss}
+      ${componentsCss}
+    </style></head><body class="lb-body">
+      <table class="lb-table"><tbody>
+        <tr>
+          <td><span class="lb-sev lb-sev--p0">p0</span> <span class="lb-sev lb-sev--p1">p1</span>
+              <span class="lb-sev lb-sev--p2">p2</span> <span class="lb-sev lb-sev--p3">p3</span></td>
+          <td><span class="lb-badge lb-badge--open">open</span>
+              <span class="lb-badge lb-badge--triaged">triaged</span>
+              <span class="lb-badge lb-badge--in_progress">in_progress</span>
+              <span class="lb-badge lb-badge--fixed">fixed</span>
+              <span class="lb-badge lb-badge--verified">verified</span>
+              <span class="lb-badge lb-badge--wontfix">wontfix</span></td>
+          <td><span class="lb-muted">muted text</span> <code class="lb-mono">mono</code></td>
+        </tr>
+      </tbody></table>
+      <button class="lb-btn lb-btn--destructive">destructive</button>
+      <div class="lb-pin lb-pin--fixed">1</div>
+      <div class="lb-pin lb-pin--verified">2</div>
+    </body></html>`);
+    // A REAL hover, driven by the mouse. An earlier version injected a style tag
+    // that hardcoded the tint — so it measured that tag rather than the file,
+    // and reverting the fix in components.css still passed. The whole point is
+    // to measure what the published file actually does.
+    await recipe.hover("tbody tr");
+    await recipe.waitForTimeout(80);
+    // KILL_MOTION here too. .lb-btn carries a 0.15s colour transition, so
+    // toggling the theme and measuring 60ms later read a mid-transition value —
+    // 3.28:1 for a pair that is genuinely 6.21:1. The same trap this file
+    // documents at the top, on a page added later that did not inherit the fix.
+    await recipe.evaluate(KILL_MOTION);
+    for (const scheme of ["light", "dark"]) {
+      await recipe.evaluate((s) => {
+        document.documentElement.classList.toggle("dark", s === "dark");
+      }, scheme);
+      await recipe.waitForTimeout(60);
+      const m = await recipe.evaluate(MEASURE);
+      check(m.contrastLight.length === 0,
+        `published recipe (${scheme}): every class clears contrast on a hovered row${
+          m.contrastLight.length ? ` — ${JSON.stringify(m.contrastLight)}` : ""
+        }`);
+    }
+    await recipe.close();
 
     // ---------- reduced motion is honoured where the motion actually is ----------
     const rm = await browser.newPage({ viewport: { width: 1280, height: 800 } });

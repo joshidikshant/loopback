@@ -282,7 +282,6 @@ Responses are markdown (default) or JSON via `response_format`, always with
 | `POST /mcp` | Stateless MCP streamable HTTP (fresh server per request; GET/DELETE → 405) |
 | `POST /ingest` | Plain-JSON submit — widgets, CI hooks, cron ingestors (201 + item; 400 with field-level issues) |
 | `GET /feedback` | List/filter (widget pin hydration) |
-| `GET /queue` | Human triage dashboard (`?project=` filter, expandable rows, theme toggle) |
 | `GET /queue/:id` | Full item view — all captured context + comment/status actions |
 | `POST /queue/:id/comment` · `POST /queue/:id/status` | Human triage writes (**same-origin only**) |
 | `GET /feedback/:id` | One item with its full trail, as JSON |

@@ -19,9 +19,11 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-      <!-- Loopback's own queue is a Loopback surface. Same origin as the hub, so
-         the endpoint is relative and no configuration is needed. This page told
-         users to "pin it" long before it actually loaded the widget. -->
+      <!-- Loopback's own queue is a Loopback surface. No data-endpoint: the widget
+         derives the hub from the origin of this very script tag, so it is
+         correct under 127.0.0.1, a LAN bind, or a proxy. It used to fall through
+         to an absolute 127.0.0.1:7077 default, which broke this page in the
+         documented `--host 0.0.0.0` phone mode. -->
     <script src="/widget.js" data-project="loopback"></script>
   </body>
 </html>

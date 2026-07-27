@@ -33,8 +33,27 @@
 
   // ---------- config ----------
   var script = document.currentScript;
+  /**
+   * Endpoint resolution, in priority order.
+   *
+   * The widget is SERVED BY the hub, so the origin of its own <script src> is
+   * the hub — no configuration needed and correct under any bind address. The
+   * hardcoded fallback only applies when the origin cannot be read at all.
+   *
+   * This matters beyond tidiness: the dashboard embeds the widget with no
+   * data-endpoint, under a comment asserting the endpoint is relative. It was
+   * not — it fell through to the absolute default, so in the documented
+   * `--host 0.0.0.0` phone mode the one page that demonstrates the loop pointed
+   * at the phone's own localhost and could neither file nor hydrate a pin.
+   */
+  var scriptOrigin = null;
+  try {
+    if (script && script.src) scriptOrigin = new URL(script.src, location.href).origin;
+  } catch (e) {
+    /* malformed src — fall through */
+  }
   var ENDPOINT =
-    (script && script.dataset.endpoint) || "http://127.0.0.1:7077";
+    (script && script.dataset.endpoint) || scriptOrigin || "http://127.0.0.1:7077";
   var PROJECT = (script && script.dataset.project) || "unknown-project";
   var POLL_MS = 10000;
   var MAX_BODY = 2048;

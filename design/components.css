@@ -153,7 +153,12 @@
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
-.lb-table tbody tr:hover { background: var(--muted); }
+/* 50%, matching the dashboard's `hover:bg-muted/50`. At full strength this row
+   tinted further than the severity ramp was calibrated for, dropping
+   .lb-sev--p0 to 4.38:1 — a published recipe failing AA on its own tokens. */
+.lb-table tbody tr:hover {
+  background: color-mix(in oklch, var(--muted) 50%, var(--background));
+}
 .lb-table tbody tr:last-child td { border-bottom: 0; }
 
 /* ---- form controls --------------------------------------------------- */
