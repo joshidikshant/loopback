@@ -5,7 +5,7 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.9.0] — 2026-07-27
+## [0.9.0] — 2026-07-27 — published to npm
 
 First published release (`npm i loopback-mcp-server`). The tarball is proven,
 not assumed: CI-adjacent checks install the packed artifact into a clean
