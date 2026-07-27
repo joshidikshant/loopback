@@ -57,7 +57,7 @@ whose boundary is asserted in both directions and canaried.
 | Dimension | Score | Evidence |
 |---|---|---|
 | Accessibility | 4/4 | Contrast in both themes incl. every hovered row and alpha-composited surface; focus indicators driven by real Tab; 24×24 everywhere and 44×44 on every touch viewport; `h1 → 6×h2` with no skips; landmarks, route titles and focus moves; 200% zoom at 320/375/640/700; reduced motion with an intentional still state in both layers |
-| Performance | 4/4 | Lean list projections, async JSON gzip, pre-gzipped hashed assets with ETag/304, read-pass/write-pass pin rendering with a negative cache |
+| Performance | 4/4 | On 60 realistic items: full `/feedback` 56,921 B → lean+gzip **1,423 B** (40×), pins+gzip 1,093 B; `/widget.js` 57,183 → 18,945 B pre-compressed with ETag/304; read-pass/write-pass pin rendering with a negative cache |
 | Implementation Integrity | 4/4 | Detector clean and canary-verified; one design system across three surfaces gated in both directions; a LAN bind now refuses unauthenticated reads and writes; `npm run canary` proves all 9 checks fail when their subject breaks |
 | Theming | 4/4 | One token system across three surfaces, parity gated in both directions, `@theme` mapping gated, orphan and literal-colour detection, `color-scheme` published |
 | Responsive | 4/4 | 0 sub-44px targets on touch viewports, no horizontal scroll at any width, widget clamped and measured at 320×480 / 568×320 / 375×812 |
@@ -75,8 +75,10 @@ whose boundary is asserted in both directions and canaried.
 
 ### P2
 
-- **Widget bundle is 46KB raw.** 15KB gzipped and the hub now compresses, so
-  this is not urgent — but it is 4.6× the original sketch.
+- **Widget bundle is 55.8KB raw, 18.5KB gzipped** (measured on the wire, not
+  via `fetch`, which decompresses transparently). The hub serves it
+  pre-compressed with an ETag, so a repeat visit is a 304 — but it is 5.6× the
+  original sketch and every host page pays the first load.
 
 ### P3
 
