@@ -132,6 +132,19 @@ const CASES = [
       ),
   },
   {
+    gate: "e2e (LAN auth)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    build: BUILD,
+    guards: "a LAN bind refusing unauthenticated reads",
+    apply: () =>
+      mutate("src/http.ts", (s) =>
+        s.replace(
+          '    if (req.method === "POST" && req.path === "/ingest") return true;',
+          '    if (req.path.length >= 0) return true;\n    if (req.method === "POST" && req.path === "/ingest") return true;',
+        ),
+      ),
+  },
+  {
     gate: "e2e",
     cmd: ["npm", ["run", "-s", "e2e"]],
     build: BUILD,

@@ -16,6 +16,7 @@ between each. Everything here is **open**. Shipped work lives in the CHANGELOG.
 | 7–18 | 14 → 16 | Grinding: mostly verification that overstated its coverage |
 | 19 | 16/20 | Performance reached 4/4; four gates still could not see |
 | 20 | **19/20** | Implementation Integrity: two agent-facing docs had drifted |
+| 21 | **20/20** | LAN auth shipped; the canary sweep caught a lost assertion |
 
 ### What the passes were actually finding
 
@@ -47,16 +48,17 @@ to prove the widget's height clamp passed with the clamp reverted, and the
 first attachment-parity canary was a no-op because the test item had no
 attachment. That loop is the durable output of this exercise.
 
-## The one open dimension
+## The dimensions
 
-**Implementation Integrity — 3/4.** Remaining gap is listed under P2 below
-(`--host 0.0.0.0` ships with no authentication). The other four dimensions
-score 4/4, measured rather than asserted:
+All five dimensions score 4/4, measured rather than asserted. The last gap —
+`--host 0.0.0.0` shipping with no authentication — closed with a bearer token
+whose boundary is asserted in both directions and canaried.
 
 | Dimension | Score | Evidence |
 |---|---|---|
 | Accessibility | 4/4 | Contrast in both themes incl. every hovered row and alpha-composited surface; focus indicators driven by real Tab; 24×24 everywhere and 44×44 on every touch viewport; `h1 → 6×h2` with no skips; landmarks, route titles and focus moves; 200% zoom at 320/375/640/700; reduced motion with an intentional still state in both layers |
 | Performance | 4/4 | Lean list projections, async JSON gzip, pre-gzipped hashed assets with ETag/304, read-pass/write-pass pin rendering with a negative cache |
+| Implementation Integrity | 4/4 | Detector clean and canary-verified; one design system across three surfaces gated in both directions; a LAN bind now refuses unauthenticated reads and writes; `npm run canary` proves all 9 checks fail when their subject breaks |
 | Theming | 4/4 | One token system across three surfaces, parity gated in both directions, `@theme` mapping gated, orphan and literal-colour detection, `color-scheme` published |
 | Responsive | 4/4 | 0 sub-44px targets on touch viewports, no horizontal scroll at any width, widget clamped and measured at 320×480 / 568×320 / 375×812 |
 
@@ -73,10 +75,6 @@ score 4/4, measured rather than asserted:
 
 ### P2
 
-- **`--host 0.0.0.0` still has no authentication.** Documented and warned
-  about, but the mode is promoted for phone testing. A bearer token is the next
-  real security milestone, and it is the only thing keeping Implementation
-  Integrity off 4/4.
 - **Widget bundle is 46KB raw.** 15KB gzipped and the hub now compresses, so
   this is not urgent — but it is 4.6× the original sketch.
 

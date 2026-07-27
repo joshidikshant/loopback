@@ -306,11 +306,30 @@ reachable from **every page open in your browser**. So:
   enforced by `safeHref()` in the dashboard, which resolves the URL and reads
   its protocol. `data:`, `vbscript:` and `file:` render as plain text.
 
-There is still **no authentication**: anyone who can reach the port with a
-non-browser client can read and write everything. `--host`/`LOOPBACK_HOST`
-widens the bind for LAN device testing and the server warns loudly — trusted
-networks only. Before any real exposure, put it behind a reverse proxy with a
-bearer token.
+**A non-loopback bind requires a token.** On `127.0.0.1` there is none — it
+would protect nothing the OS does not already protect. The moment `--host` /
+`LOOPBACK_HOST` widens the bind, the server generates one (or takes
+`LOOPBACK_TOKEN`) and prints a `?token=…` URL; the token is accepted once from
+the query string, moved into an `HttpOnly` cookie, and stripped from the URL so
+it does not persist in history or referrers. Tools send
+`Authorization: Bearer <token>`. Comparison is constant-time over a digest, so
+neither the value nor its length leaks through timing.
+
+Three endpoints stay open on a LAN bind, deliberately:
+
+| Open | Why |
+|---|---|
+| `POST /ingest` | The widget runs on a phone against an arbitrary host page and has nowhere to keep a secret. Intake is append-only: a LAN caller can file noise, not read or change anything. |
+| `GET /widget.js` | Anything embedded in a served script is readable by anyone who can fetch it. |
+| `GET /feedback?view=pins` | The minimum needed to draw pins and show one turn green. A strict projection — no body, console, network, repro steps, comments or attachments — of what is already visible on the page. |
+
+Everything else — the dashboard, full reads, every write, and `/mcp`, which
+exposes all ten tools — refuses an unauthenticated caller with 401. The split
+is asserted in `scripts/e2e.mjs` in both directions, and
+`npm run canary` proves that assertion fails when the check is disabled.
+
+This is a shared secret on a trusted network, not a substitute for real auth.
+Before exposing Loopback beyond a LAN, put it behind a reverse proxy.
 
 ## Tests
 

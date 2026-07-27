@@ -709,6 +709,82 @@ async function main() {
   console.log("✅ dashboard: filters, detail, audited edit, attachment intents, cross-origin writes refused");
 
   await browser.close();
+
+  // ---------- 8. --host 0.0.0.0 is no longer wide open ----------
+  //
+  // The LAN mode is promoted for testing on a phone, and it used to put every
+  // project's queue and every mutation — including delete — on the network with
+  // a startup warning as the only defence. Three endpoints stay open by design
+  // (see the reasoning in src/http.ts); this asserts the split, in both
+  // directions, because an auth check that never refuses is the same class of
+  // defect as a gate that never fails.
+  const AUTH_PORT = LB_PORT + 3;
+  const AUTH_DB = join(tmpdir(), `loopback-e2e-auth-${process.pid}.db`);
+  const TOKEN = "e2e-token-do-not-reuse";
+  start("node", [join(ROOT, "dist", "index.js"), "--http", "--port", String(AUTH_PORT), "--host", "0.0.0.0"], {
+    LOOPBACK_DB: AUTH_DB,
+    LOOPBACK_TOKEN: TOKEN,
+  });
+  await waitFor(`http://127.0.0.1:${AUTH_PORT}/health`);
+  const AB = `http://127.0.0.1:${AUTH_PORT}`;
+  const status = async (path, opts) => (await fetch(AB + path, { redirect: "manual", ...opts })).status;
+  const bearer = { headers: { Authorization: `Bearer ${TOKEN}` } };
+
+  const seeded = await fetch(`${AB}/ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project: "auth", type: "ui", severity: "p1",
+      title: "Only reachable with the token", body: "secret",
+      source: "widget", reporter: "human",
+    }),
+  });
+  assert(seeded.status === 201, `intake stays open on a LAN bind (got ${seeded.status})`);
+  const seededId = (await seeded.json()).id;
+
+  for (const [path, opts] of [
+    ["/widget.js", undefined],
+    ["/feedback?view=pins", undefined],
+  ]) {
+    assert(await status(path, opts) === 200, `${path} stays open — the widget cannot hold a secret`);
+  }
+  for (const [path, opts] of [
+    ["/feedback", undefined],
+    [`/feedback/${seededId}`, undefined],
+    ["/queue", undefined],
+    ["/mcp", { method: "POST" }],
+  ]) {
+    assert(await status(path, opts) === 401, `${path} refuses an unauthenticated caller on a LAN bind`);
+  }
+  assert(await status("/feedback", bearer) === 200, "a valid bearer token is accepted");
+  assert(
+    await status("/feedback", { headers: { Authorization: "Bearer wrong" } }) === 401,
+    "a WRONG token is refused — the check is not just presence",
+  );
+  // The pins projection is the one read a LAN caller gets for free. It must not
+  // become a back door into the full item.
+  const pinsOnly = await (await fetch(`${AB}/feedback?view=pins`)).json();
+  const pinKeys = Object.keys(pinsOnly.items[0] ?? {});
+  assert(
+    !["body", "console", "network", "comments", "attachments", "repro_steps"].some((f) => pinKeys.includes(f)),
+    `the open pins projection carries no payload fields (got ${pinKeys.join(",")})`,
+  );
+  // A token in the query string would otherwise persist in history and referrers.
+  const handoff = await fetch(`${AB}/queue?token=${TOKEN}`, { redirect: "manual" });
+  assert(handoff.status === 302, `a token in the URL redirects (got ${handoff.status})`);
+  assert(
+    !(handoff.headers.get("location") ?? "").includes("token"),
+    "the redirect strips the token from the URL",
+  );
+  assert(
+    (handoff.headers.get("set-cookie") ?? "").includes("HttpOnly"),
+    "the token is handed off into an HttpOnly cookie",
+  );
+  rmSync(AUTH_DB, { force: true });
+  rmSync(`${AUTH_DB}-wal`, { force: true });
+  rmSync(`${AUTH_DB}-shm`, { force: true });
+  console.log("✅ LAN bind: intake and pins open by design, everything else requires the token");
+
   console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure → human triage");
 }
 

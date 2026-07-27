@@ -12,6 +12,7 @@
  *   --help          usage
  */
 
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -40,7 +41,7 @@ Usage:
   loopback-mcp-server                 # stdio transport (default; for agent config files)
   loopback-mcp-server --http          # streamable HTTP on 127.0.0.1:7077 (the hub mode; required for widgets)
   loopback-mcp-server --http --port 8090
-  loopback-mcp-server --http --host 0.0.0.0   # LAN devices (phones) — NO auth; trusted networks only
+  loopback-mcp-server --http --host 0.0.0.0   # LAN devices (phones) — prints a token; set LOOPBACK_TOKEN to pin it
   loopback-mcp-server --db /path/to/loopback.db
   loopback-mcp-server init --project <slug> [--agents claude,codex,gemini] [--write]
                                       # onboard the current repo (AGENTS.md, skills, MCP configs ×3)
@@ -80,14 +81,30 @@ async function main(): Promise<void> {
       argValue("--port") ?? process.env.LOOPBACK_HTTP_PORT ?? 7077,
     );
     const host = argValue("--host") ?? process.env.LOOPBACK_HOST ?? "127.0.0.1";
-    const app = createHttpApp(() => buildServer(store), store, { host, port });
+    // A token only exists on a non-loopback bind. On 127.0.0.1 it would protect
+    // nothing the OS does not already protect, and every local MCP client,
+    // script and browser tab would have to carry it.
+    const isLocal = host === "127.0.0.1" || host === "localhost" || host === "::1";
+    const token = isLocal
+      ? undefined
+      : (process.env.LOOPBACK_TOKEN ?? randomBytes(24).toString("hex"));
+    const app = createHttpApp(() => buildServer(store), store, { host, port, token });
     app.listen(port, host, () => {
       console.error(
         `loopback-mcp-server v${SERVER_VERSION} on http://${host}:${port}/mcp  (db: ${dbPath})`,
       );
-      if (host !== "127.0.0.1" && host !== "localhost") {
+      if (token) {
         console.error(
-          `⚠ bound to ${host}: Loopback has NO authentication — anyone on this network can read/write the queue. ` +
+          `\n  Open the queue on this machine or a phone on the same network:\n` +
+            `    http://${host === "0.0.0.0" ? "<this-machine-ip>" : host}:${port}/queue?token=${token}\n\n` +
+            `  The token is accepted once from the URL and then kept in a cookie.\n` +
+            `  Tools and scripts send it as: Authorization: Bearer ${token}\n` +
+            `  Set LOOPBACK_TOKEN to pin it across restarts.\n`,
+        );
+      }
+      if (!isLocal) {
+        console.error(
+          `⚠ bound to ${host}: reachable by anyone on this network. Reads and writes require the token above, but POST /ingest and the pins projection stay open by design so the widget can report. Trusted networks only.` +
             `Intended for device testing on trusted networks only; put a token-gated reverse proxy in front for anything more.`,
         );
       }

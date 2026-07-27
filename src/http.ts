@@ -16,7 +16,7 @@
 
 import express from "express";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
 import { join, dirname, extname, resolve, sep } from "node:path";
 import { gzip, gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -122,11 +122,38 @@ const STATUSES = [
 ] as const;
 
 /** Config the app needs to know about its own identity on the network. */
+/** Constant-time compare so a wrong token cannot be recovered by timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  // timingSafeEqual throws on a length mismatch, which would itself be a
+  // length oracle; compare against a fixed-size digest instead.
+  return timingSafeEqual(createHash("sha256").update(ab).digest(), createHash("sha256").update(bb).digest());
+}
+
+/** Minimal Cookie header parse — not worth a dependency for one name. */
+function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return undefined;
+}
+
 export interface HttpOptions {
   /** Bind host, used to pin which origins are trusted. */
   host?: string;
   /** Bind port, same. */
   port?: number;
+  /**
+   * Shared secret required for everything except the widget's own intake.
+   * Undefined (the default, and the only value on a loopback bind) disables
+   * the check entirely — a token on 127.0.0.1 protects nothing that the OS
+   * does not already protect, and would only add friction.
+   */
+  token?: string;
 }
 
 /**
@@ -185,6 +212,71 @@ export function createHttpApp(
 
 
   const app = express();
+
+  /**
+   * Bearer token for non-loopback binds.
+   *
+   * `--host 0.0.0.0` is promoted for testing on a phone, and until now it put
+   * the entire queue — every project's reports, and every mutation including
+   * delete — on the LAN with nothing in front of it. The warning at startup
+   * was the whole defence.
+   *
+   * Three endpoints stay OPEN by design, and the reasoning is not "convenience":
+   *
+   *  - `POST /ingest` and `GET /widget.js` — the widget runs on a phone browser
+   *    against an arbitrary host page. It has nowhere to keep a secret, and
+   *    anything shipped inside the served script is readable by anyone who can
+   *    fetch the script. Intake is append-only, so the exposure is the same as
+   *    any public feedback form: someone on the network can file noise. They
+   *    cannot read or change what is already there.
+   *  - `GET /feedback?view=pins` — the minimum the widget needs to draw pins and
+   *    show one turning green. It is a strict projection (no body, console,
+   *    network, repro steps, comments or attachments) and it renders on the page
+   *    anyway, so it tells a LAN caller nothing a person looking at the screen
+   *    does not already see. The full list view is NOT open.
+   *
+   * Everything else — the dashboard, full reads, every write, and `/mcp`, which
+   * exposes all ten tools — requires the token.
+   */
+  const requireAuth = (req: express.Request, res: express.Response): boolean => {
+    if (!options.token) return true;
+    if (req.method === "POST" && req.path === "/ingest") return true;
+    if (req.path === "/widget.js" || req.path === "/health") return true;
+    if (req.method === "GET" && req.path === "/feedback" && req.query.view === "pins") return true;
+
+    const presented =
+      /^Bearer (.+)$/.exec(req.get("authorization") ?? "")?.[1] ??
+      (typeof req.query.token === "string" ? req.query.token : undefined) ??
+      readCookie(req.get("cookie"), "lb_token");
+
+    if (presented !== undefined && safeEqual(presented, options.token)) {
+      // A token in the query string ends up in history, referrers and logs.
+      // Once it has been accepted, move it into a cookie and redirect to the
+      // clean URL so a browser session never keeps carrying it.
+      if (typeof req.query.token === "string" && req.method === "GET") {
+        res.setHeader(
+          "Set-Cookie",
+          `lb_token=${encodeURIComponent(options.token)}; HttpOnly; SameSite=Lax; Path=/`,
+        );
+        const clean = new URL(req.originalUrl, "http://placeholder");
+        clean.searchParams.delete("token");
+        res.redirect(302, clean.pathname + (clean.search || ""));
+        return false;
+      }
+      return true;
+    }
+
+    res.status(401).json({
+      ok: false,
+      error: "Loopback is bound to a non-loopback address and requires a token.",
+      hint: "Open the URL printed at startup (it carries ?token=…), or send `Authorization: Bearer <token>`.",
+    });
+    return false;
+  };
+
+  app.use((req, res, next) => {
+    if (requireAuth(req, res)) next();
+  });
 
   /**
    * gzip JSON responses too, not just the dashboard bundle.

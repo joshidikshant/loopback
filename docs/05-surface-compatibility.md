@@ -118,7 +118,8 @@ curl -s -X POST http://127.0.0.1:7077/ingest -H 'Content-Type: application/json'
 
 ## Honest edges
 
-- `--host 0.0.0.0` has **no authentication** — the server prints a warning;
+- `--host 0.0.0.0` requires a bearer token (auto-generated, or `LOOPBACK_TOKEN`);
+  `POST /ingest`, `/widget.js` and the pins projection stay open so the widget works;
   use it for device testing on networks you trust, and front it with a
   token-gated reverse proxy for anything else. A built-in bearer token is the
   next security milestone before any non-LAN exposure.
