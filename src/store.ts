@@ -515,7 +515,15 @@ export class LoopbackStore {
     // Was hardcoded "agent". This is the write that turns a pin saturated
     // green — the one moment the product is entirely about — so recording the
     // wrong actor here undermines the trail precisely where it matters most.
-    if (note) this.addComment(id, author, `[${resolution}] ${note}`);
+    // Always write a trail entry. `if (note)` meant the single most consequential
+    // transition in the product — the one that turns a reporter's pin full green
+    // — could land with no record of who did it or when, which is reachable from
+    // the dashboard's Status select by leaving the note field empty.
+    this.addComment(
+      id,
+      author,
+      note ? `[${resolution}] ${note}` : `[${resolution}] (no note given)`,
+    );
     return this.get(id);
   }
 

@@ -568,7 +568,10 @@ export function ItemDetail({
           </Attachment>
         ))}
 
-        <div className="grid gap-2 sm:grid-cols-[150px_1fr_auto] sm:items-center">
+        {/* A fixed 150px track does not scale with text, so at 200% zoom the
+            Select overlapped the Input. min-content lets the track grow with its
+            own contents instead. */}
+        <div className="grid gap-2 sm:grid-cols-[minmax(9rem,auto)_1fr_auto] sm:items-center">
           <Select value={intent} onValueChange={(v) => setIntent(v as "reference" | "asset")}>
             <SelectTrigger aria-label="Attachment intent"><SelectValue /></SelectTrigger>
             <SelectContent>

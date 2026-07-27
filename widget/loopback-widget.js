@@ -341,7 +341,9 @@
     ".panel button{width:100%;margin:4px 0;padding:8px;border-radius:" + RADIUS_MD + ";border:1px solid var(--lb-border);background:var(--lb-bg);color:var(--lb-fg);cursor:pointer;font-size:13px;font-weight:500}" +
     ".panel button:hover{background:var(--lb-muted)}" +
     ".pinlist{margin:8px 0 0;max-height:180px;overflow:auto;font-size:12px}" +
-    ".pinrow{padding:6px;border-radius:" + RADIUS_SM + ";border:1px solid var(--lb-border);margin:4px 0;color:var(--lb-fg)}" +
+    ".pinrow{display:block;width:100%;min-height:44px;text-align:left;padding:8px;border-radius:" + RADIUS_SM + ";border:1px solid var(--lb-border);margin:4px 0;color:var(--lb-fg);background:var(--lb-bg);font:inherit;cursor:pointer}" +
+    ".pinrow:hover{background:var(--lb-muted)}" +
+    ".pinrow:focus-visible{outline:2px solid var(--lb-ring);outline-offset:2px}" +
     ".pinrow small{color:var(--lb-muted-fg)}" +
     ".badge{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;margin-right:6px}" +
     // Each status carries its own paired foreground. A single --lb-on-status
@@ -360,11 +362,15 @@
     ".form input,.form textarea,.form select{width:100%;margin:3px 0 8px;padding:9px;border:1px solid var(--lb-input);border-radius:" + RADIUS_MD + ";font-size:16px;background:var(--lb-bg);color:var(--lb-fg);font-family:inherit;min-height:44px}" +
     ".form input:focus-visible,.form textarea:focus-visible,.form select:focus-visible{outline:2px solid var(--lb-ring);outline-offset:-1px}" +
     ".form textarea{height:60px;resize:vertical}" +
+    // Chrome's default placeholder grey measured 3.89:1 on the dark panel.
+    ".form ::placeholder{color:var(--lb-muted-fg);opacity:1}" +
     ".form label{display:block;font-size:11px;font-weight:500;color:var(--lb-muted-fg)}" +
     // Status notes are prose, not labels — they get their own class so no
     // <label> has to exist purely to inherit type styling.
     ".form .note{display:block;font-size:11px;font-weight:500;margin-bottom:6px}" +
-    ".form .note-ctx{color:var(--lb-verified)}.form .note-net{color:var(--lb-open)}" +
+    // Informational capture notes, NOT status. Using --lb-verified and
+    // --lb-open here spent the product's status vocabulary on decoration.
+    ".form .note-ctx,.form .note-net{color:var(--lb-fg)}" +
     ".form [aria-invalid=true]{border-color:var(--lb-open);outline-color:var(--lb-open)}" +
     ".row{display:flex;gap:6px}.row>*{flex:1}" +
     ".actions{display:flex;gap:8px;margin-top:4px}" +
@@ -385,7 +391,7 @@
     ".pin.b-wontfix{background:var(--lb-wontfix);color:var(--lb-wontfix-fg)}" +
     ".toast{position:fixed;bottom:70px;right:18px;z-index:2147483002;background:var(--lb-primary);color:var(--lb-primary-fg);padding:9px 14px;border-radius:" + RADIUS_MD + ";font-size:12.5px;box-shadow:var(--lb-shadow-md);max-width:320px}" +
     ".pin.pulse{animation:lbpulse 1.1s ease-out 3}" +
-    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring)}to{box-shadow:0 0 0 13px rgb(0 0 0/0)}}" +
+    "@keyframes lbpulse{from{box-shadow:0 0 0 0 var(--lb-ring)}to{box-shadow:0 0 0 13px transparent}}" +
     // Reduced motion resolves to the DESIGNED STILL STATE, it does not just
     // delete feedback: the pin keeps a steady ring so "this one is new" still
     // reads, it simply stops pulsing. A blanket animation:none would remove the
@@ -1061,8 +1067,11 @@
         pinPool[it.id] = pin;
         ui.appendChild(pin);
       }
-      pin.dataset.id = it.id;
-      pin.textContent = String(rec.index);
+      // Guarded like every write below. textContent and dataset both invalidate
+      // layout, and re-assigning an identical value still counts.
+      if (pin.dataset.id !== it.id) pin.dataset.id = it.id;
+      var label = String(rec.index);
+      if (pin.textContent !== label) pin.textContent = label;
       var cls = "pin b-" + it.status;
       // Pulse once per announcement — scroll/resize re-renders must not replay it.
       if (changedIds[it.id]) cls += " pulse";
@@ -1080,6 +1089,13 @@
       // is anchored at 0,0 and translated into place.
       var t = "translate3d(" + Math.round(rec.left) + "px," + Math.round(rec.top) + "px,0)";
       if (pin.style.transform !== t) pin.style.transform = t;
+      // Off-screen pins leave the tab order entirely. They used to stay
+      // focusable at negative coordinates: focus would vanish to a control the
+      // user could neither see nor scroll to.
+      var visible =
+        rec.top > -24 && rec.top < window.innerHeight && rec.left > -24 && rec.left < window.innerWidth;
+      var vis = visible ? "" : "none";
+      if (pin.style.display !== vis) pin.style.display = vis;
       pinEls.push(pin);
     }
     changedIds = {};
@@ -1105,7 +1121,15 @@
       return;
     }
     items.forEach(function (i) {
-      var rowEl = mk("div", "pinrow");
+      // Real buttons. These were inert <div>s while a comment three hundred
+      // lines up justified the 24px pin by calling this list the large-target
+      // route to the same actions. It was not a route at all.
+      var rowEl = mk("button", "pinrow");
+      rowEl.type = "button";
+      rowEl.setAttribute("aria-label", i.status + ": " + i.title);
+      rowEl.addEventListener("click", function () {
+        toast(pinSummary(i));
+      });
       rowEl.appendChild(mk("span", "badge b-" + i.status, i.status));
       // Titles are reporter-authored text — appended as text, never markup.
       rowEl.appendChild(document.createTextNode(i.title));

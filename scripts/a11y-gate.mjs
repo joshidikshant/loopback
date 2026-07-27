@@ -385,6 +385,14 @@ async function main() {
       `detail: every control has an accessible name${item.unnamed.length ? ` — ${JSON.stringify(item.unnamed)}` : ""}`);
     check(item.title.includes(detail), "detail: route change set the document title");
 
+    // Seed an attachment first. Every zoom and overflow assertion below used to
+    // run on an item that had none, so the attachment UI — which carries two
+    // fixed-px floors — was never in the measured state at all.
+    await fetch(
+      `${LB}/feedback/${detail}/attachments?name=a-fairly-long-asset-name.svg&intent=asset&target=public/logos/acme.svg`,
+      { method: "POST", headers: { "Content-Type": "image/svg+xml" }, body: "<svg/>" },
+    );
+
     // ---------- SC 1.4.4: 200% text-only zoom ----------
     // The gate only ever varied title and body, never the root font size — so a
     // header that could not shrink pushed the search input 81px off the LEFT

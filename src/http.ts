@@ -18,7 +18,7 @@ import express from "express";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join, dirname, extname, resolve, sep } from "node:path";
-import { gzipSync } from "node:zlib";
+import { gzip, gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -157,12 +157,21 @@ export function createHttpApp(
       const raw = Buffer.from(JSON.stringify(body));
       // Below ~1KB the header and CPU cost outweigh the saving.
       if (raw.length < 1024) return originalJson(body);
-      const packed = gzipSync(raw);
-      res.setHeader("Content-Encoding", "gzip");
-      res.setHeader("Vary", "Accept-Encoding");
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.setHeader("Content-Length", String(packed.length));
-      res.end(packed);
+      // ASYNC. gzipSync here blocked the event loop for a measured 273ms on a
+      // 1000-item response — the exact scale this middleware exists for — which
+      // freezes /ingest and every agent's /mcp call for that window. The
+      // dashboard route can stay sync: those files are small and immutable.
+      gzip(raw, (err, packed) => {
+        if (err) {
+          originalJson(body);
+          return;
+        }
+        res.setHeader("Content-Encoding", "gzip");
+        res.setHeader("Vary", "Accept-Encoding");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader("Content-Length", String(packed.length));
+        res.end(packed);
+      });
       return res;
     };
     next();

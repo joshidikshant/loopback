@@ -102,10 +102,26 @@ const INVARIANT_PAIRS = [
   ["--lb-pin-size", "--lb-pin-size"],
   ["--lb-pin-radius", "--lb-pin-radius"],
   ["--lb-radius", "--radius"],
+  ["--lb-font", "--lb-font"],
+];
+
+// Shadows DO change between themes (they deepen on dark), so they belong in the
+// per-theme map, not the invariant one. They were outside both.
+const SHADOW_PAIRS = [
+  ["--lb-shadow-sm", "--lb-shadow-sm"],
+  ["--lb-shadow-md", "--lb-shadow-md"],
+  ["--lb-shadow-lg", "--lb-shadow-lg"],
 ];
 
 // tokens.css writes `oklch(1 0 0 / 10%)`; the widget minifies to `oklch(1 0 0/10%)`.
-const norm = (v) => v.replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim();
+const norm = (v) =>
+  v
+    .replace(/[}"']+$/g, "")     // trailing block braces captured by the fragment scan
+    .replace(/['"]/g, '"')        // the widget minifies to single quotes
+    .replace(/\s*\/\s*/g, "/")   // `rgb(0 0 0 / 0.6)` vs `rgb(0 0 0/0.6)`
+    .replace(/,\s*/g, ",")        // font stacks
+    .replace(/\s+/g, " ")
+    .trim();
 
 for (const [theme, source, marker] of [
   ["light", light, ".lb-root{display:contents"],
@@ -118,7 +134,10 @@ for (const [theme, source, marker] of [
   }
   // Invariant tokens live only in :root; comparing them against .dark would
   // report a phantom "missing from tokens.css" for every one of them.
-  const applicable = theme === "light" ? [...PAIRS, ...INVARIANT_PAIRS] : PAIRS;
+  const applicable =
+    theme === "light"
+      ? [...PAIRS, ...SHADOW_PAIRS, ...INVARIANT_PAIRS]
+      : [...PAIRS, ...SHADOW_PAIRS];
   let checked = 0;
   for (const [widgetName, designName] of applicable) {
     const want = source[designName];
@@ -221,10 +240,13 @@ flattened.forEach(([line, lineNo]) => {
 // Same scan over the widget's inlined stylesheet. Its own token DECLARATIONS
 // are literals by necessity (it cannot @import), so only rules that CONSUME a
 // colour are checked — declarations are matched by the parity map above.
-for (const [, prop, value] of widgetCss.matchAll(
-  /(?:^|[;{])\s*(color|background|background-color|border-color|outline-color|fill|stroke)\s*:\s*([^;}]+)/g,
-)) {
-  if (/^\s*var\(/.test(value)) continue;
+// EVERY property, not an allowlist. The widget's real CSS carries colour inside
+// `border:`, `outline:` and `box-shadow:` shorthands, and all three were exempt.
+const WIDGET_TOKEN_DECL = /^--lb-/;
+for (const [, prop, value] of widgetCss.matchAll(/(?:^|[;{])\s*([\w-]+)\s*:\s*([^;}]+)/g)) {
+  // The widget's own token declarations are literals by necessity — it ships as
+  // one file and cannot @import. Those are covered by the parity map above.
+  if (WIDGET_TOKEN_DECL.test(prop)) continue;
   if (COLOUR_LITERAL.test(value)) {
     fail(`widget/loopback-widget.js hardcodes ${prop}: ${value.trim()} — use a token`);
   }
