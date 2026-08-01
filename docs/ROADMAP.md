@@ -6,18 +6,14 @@ audit arc that took the suite from 11/20 to 20/20 — lives in the
 
 ## Open
 
-**One, and it needs DJ's npm OTP:** publish **0.9.1**, which adds the `mcpName`
-field the MCP Registry requires to prove ownership. 0.9.0 shipped without it
-and npm versions are immutable, so registry submission is gated behind this
-release. Everything is staged and gated; see "Publishing to the MCP Registry"
+**Nothing blocking.** `loopback-mcp-server@0.9.1` is published with the
+`mcpName` the MCP Registry requires, verified live at the exact endpoint the
+validator reads and cold-installed from the registry (init renders, hub serves,
+intake accepts). The remaining step is one command DJ runs — `mcp-publisher
+login github && mcp-publisher publish` — see "Publishing to the MCP Registry"
 in the README.
 
-Otherwise: every P1–P3 shipped or moved to Deliberate with a measured
-rationale, and **v0.9.0 is published** — `npm i loopback-mcp-server` (252.7 kB,
-32 files, MIT). Verified cold from the registry in a clean directory: install →
-`init` renders all five files with the slug threaded through → the generated
-`.mcp.json` path resolves and boots a live hub → dashboard, widget and intake
-all serve. The README's install instructions are now true on any machine.
+Every P1–P3 shipped or moved to Deliberate with a measured rationale.
 
 ## Next milestones (unscheduled, demand-driven)
 
