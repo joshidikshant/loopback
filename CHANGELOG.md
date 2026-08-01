@@ -5,6 +5,35 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed — the plugin channel was two releases stale
+A structural review found the Claude Code plugin shipping a **fourth** copy of
+the skill playbook that nothing rendered, so it silently kept the
+pre-attachments version while the other three were fixed. Alongside it, two
+version fields still read `0.8.0` after two published releases, and the plugin
+told Claude Code to install via `npx github:joshidikshant/loopback` — a git
+clone that runs a full `tsc` build on every cold start — when the package is on
+npm.
+
+- `plugin/skills/loopback/SKILL.md` synced from the canonical template.
+- `plugin/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+  now track `package.json`.
+- `plugin/.mcp.json` installs `loopback-mcp-server` from npm.
+- `init-gate` gained five assertions covering all of it, canaried three ways;
+  the sweep is 18 checks. The npm release touches none of these files, which is
+  exactly why they rotted.
+
+### Removed
+`fv-probe.mjs` — a one-off Playwright scratch file from pass 6, referenced by
+nothing.
+
+### Changed — the repo map documents the whole tree
+The six root dot-directories are `init` output (the repo onboards itself, and
+`init-gate` re-renders them each CI run), but nothing said so, which read as
+clutter. The map now covers them, `public/`, `assets/`, and the two root
+manifests that do different jobs — `registry.json` for shadcn, `server.json`
+for the MCP Registry. Also corrected the widget size, still quoted as
+46KB/15KB against a measured 57KB/19KB.
+
 ## [0.9.1] — 2026-07-27 — published to npm and the MCP Registry
 
 ### Added — MCP Registry identity (`mcpName` + `server.json`)

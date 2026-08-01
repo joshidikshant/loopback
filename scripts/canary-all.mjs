@@ -182,6 +182,15 @@ const CASES = [
       ),
   },
   {
+    gate: "init-gate (plugin channel)",
+    cmd: ["node", ["scripts/init-gate.mjs"]],
+    guards: "the plugin's own SKILL.md copy matching canonical",
+    apply: () =>
+      mutate("plugin/skills/loopback/SKILL.md", (s) =>
+        s.slice(0, s.indexOf("## Attachments")) + s.slice(s.indexOf("## Filing feedback")),
+      ),
+  },
+  {
     gate: "init-gate (canonical drift)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     guards: "the canonical skill template matching the repo's installed copy",

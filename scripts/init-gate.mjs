@@ -221,6 +221,44 @@ for (const dir of [fresh, seeded, subset]) rmSync(dir, { recursive: true, force:
   assert(freshAgents !== null && freshAgents === repoAgents,
     "repo's AGENTS.md queue block is exactly what init renders (instructions-src cannot drift)");
   rmSync(renderDir, { recursive: true, force: true });
+
+  // The PLUGIN channel carries a fourth copy, and it escaped the check above
+  // because it is not init output — nothing renders it, so it silently kept a
+  // pre-attachments playbook while the other three were fixed. Found by a
+  // structural review, not by a gate, which is the point of adding one.
+  const pluginSkill = readFileSync(join(process.cwd(), "plugin", "skills", "loopback", "SKILL.md"), "utf-8");
+  const canonical = readFileSync(join(process.cwd(), "skills", "loopback", "SKILL.md"), "utf-8");
+  assert(
+    pluginSkill === canonical,
+    "plugin/skills/loopback/SKILL.md matches the canonical template (the plugin ships its own copy)",
+  );
+
+  // Three version fields the npm release does not touch, so they rot silently:
+  // both were still 0.8.0 two published releases later.
+  const pkgVersion = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf-8")).version;
+  const pluginManifest = JSON.parse(
+    readFileSync(join(process.cwd(), "plugin", ".claude-plugin", "plugin.json"), "utf-8"),
+  );
+  const marketplace = JSON.parse(
+    readFileSync(join(process.cwd(), ".claude-plugin", "marketplace.json"), "utf-8"),
+  );
+  assert(
+    pluginManifest.version === pkgVersion,
+    `plugin.json version tracks package.json (${pluginManifest.version} vs ${pkgVersion})`,
+  );
+  assert(
+    marketplace.plugins.every((x) => x.version === pkgVersion),
+    `marketplace.json plugin versions track package.json (${marketplace.plugins.map((x) => x.version).join(",")} vs ${pkgVersion})`,
+  );
+
+  // An adopter installing the plugin should get the PUBLISHED artifact, not a
+  // git clone that runs a full tsc build on every cold start.
+  const pluginMcp = JSON.parse(readFileSync(join(process.cwd(), "plugin", ".mcp.json"), "utf-8"));
+  const args = pluginMcp.mcpServers.loopback.args.join(" ");
+  assert(
+    args.includes("loopback-mcp-server") && !args.includes("github:"),
+    `plugin/.mcp.json installs the published npm package, not a git clone (${args})`,
+  );
 }
 
 if (failures) {
