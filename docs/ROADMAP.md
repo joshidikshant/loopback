@@ -6,14 +6,16 @@ audit arc that took the suite from 11/20 to 20/20 — lives in the
 
 ## Open
 
-**Nothing blocking.** `loopback-mcp-server@0.9.1` is published with the
-`mcpName` the MCP Registry requires, verified live at the exact endpoint the
-validator reads and cold-installed from the registry (init renders, hub serves,
-intake accepts). The remaining step is one command DJ runs — `mcp-publisher
-login github && mcp-publisher publish` — see "Publishing to the MCP Registry"
-in the README.
+**Nothing.** Distribution is complete end to end:
 
-Every P1–P3 shipped or moved to Deliberate with a measured rationale.
+| Surface | State |
+|---|---|
+| GitHub | [joshidikshant/loopback](https://github.com/joshidikshant/loopback) |
+| npm | `loopback-mcp-server@0.9.1` — cold-verified from the registry |
+| MCP Registry | `io.github.joshidikshant/loopback` — status `active` |
+
+Every P1–P3 shipped or moved to Deliberate with a measured rationale. What the
+project needs next is not code: it is an adopter who is not DJ.
 
 ## Next milestones (unscheduled, demand-driven)
 

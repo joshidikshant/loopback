@@ -5,7 +5,7 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.9.1] — 2026-07-27 — published to npm
+## [0.9.1] — 2026-07-27 — published to npm and the MCP Registry
 
 ### Added — MCP Registry identity (`mcpName` + `server.json`)
 The official MCP Registry proves package ownership by fetching the **published**
