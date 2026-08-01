@@ -13,7 +13,7 @@ machine (recommended) or per project.
 # local checkout (fast startup):
 claude mcp add --scope user loopback -- node /ABS/PATH/loopback/dist/index.js
 # or zero-install from GitHub:
-claude mcp add --scope user loopback -- npx -y github:joshidikshant/loopback
+claude mcp add --scope user loopback -- npx -y loopback-mcp-server
 ```
 
 **B — the plugin** (bundles the skill + MCP registration in one install):

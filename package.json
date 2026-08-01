@@ -36,7 +36,8 @@
     "impeccable-gate": "node scripts/impeccable-gate.mjs",
     "widget-token-gate": "node scripts/widget-token-gate.mjs",
     "a11y-gate": "node scripts/a11y-gate.mjs",
-    "canary": "node scripts/canary-all.mjs"
+    "canary": "node scripts/canary-all.mjs",
+    "verify:release": "node scripts/release-verify.mjs"
   },
   "repository": {
     "type": "git",

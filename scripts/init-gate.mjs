@@ -6,7 +6,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, cpSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -191,6 +191,67 @@ assert(
 
 for (const dir of [fresh, seeded, subset]) rmSync(dir, { recursive: true, force: true });
 
+
+// ---------- no rendered config git-clones the repo ----------
+// `serverCommand()` emits the EPHEMERAL branch when its own entry path contains
+// an `_npx` segment — which is what happens when an adopter runs the command
+// the README documents (`npx loopback-mcp-server init`). That branch used to
+// write `npx -y github:joshidikshant/loopback`, so every adopter following the
+// README got a config that cloned the repo and ran a full tsc build on every
+// cold MCP start. Correct when nothing was published; wrong once it was.
+//
+// This MUST run the CLI from an `_npx`-shaped path. A first version of this
+// check invoked the normal `dist/index.js` and passed with the github spec
+// restored — the stable path never reaches the branch under test.
+{
+  const npxRoot = mkdtempSync(join(tmpdir(), "loopback-ephemeral-"));
+  const pkgDir = join(npxRoot, "_npx", "deadbeef", "node_modules", "loopback-mcp-server");
+  mkdirSync(pkgDir, { recursive: true });
+  for (const dir of ["dist", "integrations", "skills"]) {
+    cpSync(join(process.cwd(), dir), join(pkgDir, dir), { recursive: true });
+  }
+  cpSync(join(process.cwd(), "package.json"), join(pkgDir, "package.json"));
+  // Dependencies resolve through a link; only the ENTRY path decides the branch.
+  symlinkSync(join(process.cwd(), "node_modules"), join(pkgDir, "node_modules"), "dir");
+
+  const adopter = join(npxRoot, "adopter");
+  mkdirSync(adopter, { recursive: true });
+  execFileSync(process.execPath, [join(pkgDir, "dist", "index.js"), "init", "--project", "npx-adopter", "--write"], {
+    cwd: adopter,
+    stdio: "pipe",
+  });
+
+  const rendered = [
+    [".mcp.json", readFileSync(join(adopter, ".mcp.json"), "utf-8")],
+    [".codex/config.toml", readFileSync(join(adopter, ".codex", "config.toml"), "utf-8")],
+    [".gemini/settings.json", readFileSync(join(adopter, ".gemini", "settings.json"), "utf-8")],
+  ];
+  // Guard the guard: prove this render actually took the ephemeral branch,
+  // otherwise the whole block is testing the wrong code path again.
+  //
+  // On the PARSED command, not a substring of the file: the first version of
+  // this guard searched the raw text for "npx" while the temp directory was
+  // itself named `loopback-npx-…`, so the absolute path in a `node <path>`
+  // command satisfied it. Moving the fixture off a stable path left the guard
+  // green — the canary caught it.
+  const renderedCommand = JSON.parse(readFileSync(join(adopter, ".mcp.json"), "utf-8"))
+    .mcpServers?.loopback?.command;
+  assert(
+    renderedCommand === "npx",
+    `the ephemeral (_npx) branch was actually exercised — rendered command is '${renderedCommand}', expected 'npx'`,
+  );
+  for (const [name, text] of rendered) {
+    assert(
+      !text.includes("github:"),
+      `init's ${name} does not point an adopter at a git clone (npx github:… rebuilds from source on every cold MCP start)`,
+    );
+    assert(
+      text.includes("loopback-mcp-server"),
+      `init's ${name} points at the published npm package`,
+    );
+  }
+  rmSync(npxRoot, { recursive: true, force: true });
+}
 
 // ---------- the repo eats its own init output ----------
 // The canonical template (skills/loopback/SKILL.md) is what every ADOPTER

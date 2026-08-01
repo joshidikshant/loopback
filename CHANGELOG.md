@@ -5,6 +5,38 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed — `init` handed every adopter a git-clone MCP config
+`serverCommand()` emitted `npx -y github:joshidikshant/loopback` on any
+EPHEMERAL run — which is precisely how the README documents onboarding
+(`npx loopback-mcp-server init`). Every adopter following it got `.mcp.json`,
+`.codex/config.toml` and `.gemini/settings.json` pointing at a **git clone that
+runs a full `tsc` build on every cold MCP start**. That was the right call when
+nothing was published; it became wrong the moment `loopback-mcp-server` shipped
+to npm, and it survived because no gate could reach the branch. Now
+`npx -y loopback-mcp-server`, unpinned so adopters get fixes without re-running
+init. The four docs handing out the same stale command are corrected too.
+
+Found by an adversarial audit that *reproduced* it rather than arguing it, and
+gated twice over:
+
+- `init-gate` runs the CLI from an `_npx`-shaped fixture — the only path that
+  reaches the branch. A first version invoked the normal `dist/index.js` and
+  **passed with the git spec restored**; the canary caught it.
+- Its guard-the-guard then had the same disease: it searched raw text for
+  `"npx"` while the temp dir was named `loopback-npx-…`, so an absolute path in
+  a `node <path>` command satisfied it. Now asserts the parsed `command` field.
+
+### Added — `npm run verify:release`
+Post-publish verification of all three channels, by using them: installs the
+published tarball into a clean directory, renders `init` from it, **runs the
+MCP command init actually wrote** (not a path the script composes — the audit
+reproduced a false green there too), confirms the MCP Registry listing resolves
+to the shipped version, and runs the plugin's registered command from an empty
+directory. Tools are checked by NAME, not count, so a rename cannot hide.
+
+Deliberately not a per-push gate: it needs the network and tests published
+artifacts, so on a PR it would pass while the branch is broken. Sweep is 19.
+
 ### Fixed — the plugin channel was two releases stale
 A structural review found the Claude Code plugin shipping a **fourth** copy of
 the skill playbook that nothing rendered, so it silently kept the

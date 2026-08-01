@@ -86,7 +86,7 @@ are a two-minute `init`. All three are equal citizens — full per-agent pages i
 
 | Agent | MCP registration | Instructions/skill channel |
 |---|---|---|
-| **Claude Code** | `claude mcp add --scope user loopback -- npx -y github:joshidikshant/loopback` — or the plugin: `claude plugin marketplace add joshidikshant/loopback && claude plugin install loopback@loopback` | `@AGENTS.md` import in CLAUDE.md + skill at `.claude/skills/loopback/` → [claude.md](integrations/claude.md) |
+| **Claude Code** | `claude mcp add --scope user loopback -- npx -y loopback-mcp-server` — or the plugin: `claude plugin marketplace add joshidikshant/loopback && claude plugin install loopback@loopback` | `@AGENTS.md` import in CLAUDE.md + skill at `.claude/skills/loopback/` → [claude.md](integrations/claude.md) |
 | **Codex** | `~/.codex/config.toml`: `[mcp_servers.loopback]` `command`/`args` (or project-scoped `.codex/config.toml`) | AGENTS.md read natively + native SKILL.md at `.agents/skills/loopback/` → [codex.md](integrations/codex.md) |
 | **Gemini CLI** | `~/.gemini/settings.json` → `mcpServers.loopback` | AGENTS.md via `context.fileName` + `@AGENTS.md` in GEMINI.md + `/loopback` command → [gemini.md](integrations/gemini.md) |
 
@@ -359,10 +359,16 @@ npm publish --otp=<code>          # 2FA code from your authenticator
 mcp-publisher validate            # checks server.json against the live registry
 mcp-publisher login github        # opens a browser
 mcp-publisher publish             # reads server.json
+npm run verify:release            # proves all three channels from a clean dir
 ```
 
 Run `validate` before `publish` — it checks the manifest against the real
-registry without spending an attempt. `description` is capped at **100
+registry without spending an attempt. Run `verify:release` after, and read what
+it prints: it installs the published tarball into a clean directory, renders
+`init` from it, speaks real MCP to the result, confirms the registry listing
+resolves to the version you just shipped, and runs the plugin's own registered
+command from an empty directory. Every one of those steps has caught a real bug
+that the source-side gates could not see. `description` is capped at **100
 characters** and is rejected, not truncated, past it, so `npm run smoke`
 asserts that limit locally as well.
 

@@ -182,6 +182,16 @@ const CASES = [
       ),
   },
   {
+    gate: "init-gate (adopter install source)",
+    cmd: ["node", ["scripts/init-gate.mjs"]],
+    build: BUILD,
+    guards: "init not handing adopters a git-clone MCP command",
+    apply: () =>
+      mutate("src/init.ts", (s) =>
+        s.replace('const NPM_SPEC = "loopback-mcp-server";', 'const NPM_SPEC = "github:joshidikshant/loopback";'),
+      ),
+  },
+  {
     gate: "init-gate (plugin channel)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     guards: "the plugin's own SKILL.md copy matching canonical",

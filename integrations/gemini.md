@@ -21,7 +21,7 @@ section plus an optional `/loopback` custom command.
 }
 ```
 
-Zero-install alternative: `"command": "npx", "args": ["-y", "github:joshidikshant/loopback"]`.
+Zero-install alternative: `"command": "npx", "args": ["-y", "loopback-mcp-server"]`.
 
 **HTTP variant** — point at the long-running central instance instead:
 

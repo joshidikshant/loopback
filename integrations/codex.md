@@ -12,7 +12,7 @@ paths. Register the MCP server once globally, or per repo.
 [mcp_servers.loopback]
 command = "node"
 args = ["/ABS/PATH/loopback/dist/index.js"]
-# or zero-install:  command = "npx"  /  args = ["-y", "github:joshidikshant/loopback"]
+# or zero-install:  command = "npx"  /  args = ["-y", "loopback-mcp-server"]
 ```
 
 **HTTP variant** — point at the long-running central instance instead:

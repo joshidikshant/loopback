@@ -26,7 +26,17 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const REPO_SPEC = "github:joshidikshant/loopback";
+/**
+ * What an ephemeral (npx) run points agent configs at.
+ *
+ * This was `github:joshidikshant/loopback` back when nothing stable was
+ * published — which made every adopter who followed the README's own
+ * `npx loopback-mcp-server init` command git-CLONE the repo and run a full
+ * `tsc` build on every cold MCP start. The package is on npm now, so the
+ * ephemeral branch resolves a published tarball instead. Unpinned on
+ * purpose: an adopter should get fixes without re-running init.
+ */
+const NPM_SPEC = "loopback-mcp-server";
 
 const SECTION_BEGIN = "<!-- loopback:queue:begin -->";
 const SECTION_END = "<!-- loopback:queue:end -->";
@@ -138,12 +148,12 @@ function renderedSkill(project: string): string {
  *   or a monorepo vendoring it) → repo-relative path, so the committed config
  *   works on every clone and leaks no machine paths.
  * - Stable checkout elsewhere → absolute path (fast startup).
- * - Ephemeral npx run → `npx github:` (nothing stable to point at).
+ * - Ephemeral npx run → `npx loopback-mcp-server` (the published package).
  */
 function serverCommand(cwd: string): { command: string; args: string[] } {
   const entry = resolve(PACKAGE_ROOT, "dist", "index.js");
   const ephemeral = entry.split(sep).includes("_npx");
-  if (ephemeral || !existsSync(entry)) return { command: "npx", args: ["-y", REPO_SPEC] };
+  if (ephemeral || !existsSync(entry)) return { command: "npx", args: ["-y", NPM_SPEC] };
   const inside = relative(cwd, entry);
   if (!inside.startsWith("..") && !isAbsolute(inside)) {
     return { command: "node", args: [`./${inside.split(sep).join("/")}`] };
