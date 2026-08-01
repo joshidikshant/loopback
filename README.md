@@ -356,9 +356,15 @@ To release and submit:
 
 ```bash
 npm publish --otp=<code>          # 2FA code from your authenticator
+mcp-publisher validate            # checks server.json against the live registry
 mcp-publisher login github        # opens a browser
 mcp-publisher publish             # reads server.json
 ```
+
+Run `validate` before `publish` — it checks the manifest against the real
+registry without spending an attempt. `description` is capped at **100
+characters** and is rejected, not truncated, past it, so `npm run smoke`
+asserts that limit locally as well.
 
 ## Tests
 

@@ -87,6 +87,7 @@ async function main(): Promise<void> {
   // version number. Four version fields and two name fields, all hand-typed.
   const srv = JSON.parse(readFileSync(new URL("../server.json", import.meta.url), "utf-8")) as {
     name: string;
+    description: string;
     version: string;
     packages: { identifier: string; version: string }[];
   };
@@ -102,6 +103,13 @@ async function main(): Promise<void> {
   assert(
     srv.version === pkg.version && srv.packages.every((x) => x.version === pkg.version),
     `server.json versions track package.json (${srv.version} / ${srv.packages.map((x) => x.version).join(",")} vs ${pkg.version})`,
+  );
+  // The registry REJECTS on this rather than truncating, and it is the kind of
+  // field that grows during a docs pass. Caught for real: the first draft ran
+  // 191 chars and `mcp-publisher validate` 422'd.
+  assert(
+    srv.description.length > 0 && srv.description.length <= 100,
+    `server.json description is within the registry's 100-char limit (${srv.description.length})`,
   );
   assert(
     srv.packages.every((x) => x.identifier === pkgJson.name),

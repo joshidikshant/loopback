@@ -172,6 +172,16 @@ const CASES = [
       mutate("server.json", (s) => s.replace("io.github.joshidikshant/loopback", "io.github.someoneelse/loopback")),
   },
   {
+    gate: "smoke (registry description limit)",
+    cmd: ["npm", ["run", "-s", "smoke"]],
+    build: BUILD,
+    guards: "server.json description fitting the registry's 100-char limit",
+    apply: () =>
+      mutate("server.json", (s) =>
+        s.replace('"description": "', '"description": "' + "x".repeat(120)),
+      ),
+  },
+  {
     gate: "init-gate (canonical drift)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     guards: "the canonical skill template matching the repo's installed copy",
