@@ -13,6 +13,9 @@ Code, Codex, and Gemini CLI** all work over MCP. When an agent's fix is
 verified, the pin turns green on the page, live.
 
 [![CI](https://github.com/joshidikshant/loopback/actions/workflows/ci.yml/badge.svg)](https://github.com/joshidikshant/loopback/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/loopback-mcp-server)](https://www.npmjs.com/package/loopback-mcp-server)
+[![node](https://img.shields.io/node/v/loopback-mcp-server)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ![The loop, closed: a green verified pin on the form claude-code fixed (PR linked), an amber open pin on the AI answer, and the Loopback panel listing both](assets/loopback-widget-demo.png)
 
@@ -82,8 +85,23 @@ resolved, the open page announces it and the pin goes green.
 ## Install once per machine
 
 Register the MCP server + instructions once per agent; after this, new projects
-are a two-minute `init`. All three are equal citizens — full per-agent pages in
-[`integrations/`](integrations/):
+are a two-minute `init`. The copy-paste version — Claude Code (`.mcp.json` in
+your project, or `~/.claude.json` for all projects):
+
+```json
+{
+  "mcpServers": {
+    "loopback": {
+      "command": "npx",
+      "args": ["-y", "loopback-mcp-server"]
+    }
+  }
+}
+```
+
+Codex and Gemini CLI take the same `command`/`args` in their own config — the
+server is the same binary over stdio. All three are equal citizens — full
+per-agent pages in [`integrations/`](integrations/):
 
 | Agent | MCP registration | Instructions/skill channel |
 |---|---|---|
