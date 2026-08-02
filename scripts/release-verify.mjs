@@ -283,15 +283,30 @@ async function main() {
     `https://registry.modelcontextprotocol.io/v0/servers?search=${encodeURIComponent(MCP_NAME)}`,
   );
   const servers = reg.body?.servers ?? reg.body?.data ?? [];
-  const entry = servers
+  // The registry keeps EVERY published version, so this endpoint returns a list.
+  // A `.find()` on the name took whichever came first — 0.9.1 — and reported a
+  // successful 0.9.2 publish as a failure, telling the operator to re-run a
+  // command that had already worked. It passed until now only because there was
+  // a single entry. Select the one the registry itself flags as latest, and fall
+  // back to matching the version rather than to position.
+  const all = servers
     .map((s) => ({ core: s.server ?? s, meta: s._meta?.["io.modelcontextprotocol.registry/official"] ?? {} }))
-    .find((s) => s.core?.name === MCP_NAME);
-  check(!!entry, `${MCP_NAME} is listed`);
+    .filter((s) => s.core?.name === MCP_NAME);
+  const entry =
+    all.find((s) => s.meta.isLatest === true) ?? all.find((s) => s.core.version === VERSION);
+  check(!!entry, `${MCP_NAME} is listed${all.length ? ` (${all.length} version(s): ${all.map((s) => s.core.version).join(", ")})` : ""}`);
   if (entry) {
+    check(
+      entry.meta.isLatest === true,
+      `the version flagged latest is the one being verified (latest=${all.find((s) => s.meta.isLatest)?.core.version ?? "none"})`,
+    );
     check(entry.meta.status === "active", `listing status is active (got ${entry.meta.status})`);
+    // The remediation hint belongs on the failure, not on every green line.
     check(
       entry.core.version === VERSION,
-      `the listing points at ${VERSION} (got ${entry.core.version}) — re-run mcp-publisher publish after a release`,
+      entry.core.version === VERSION
+        ? `the listing points at ${VERSION}`
+        : `the listing points at ${entry.core.version}, not ${VERSION} — run: mcp-publisher publish`,
     );
     const npmPkg = (entry.core.packages ?? []).find((p) => p.registryType === "npm");
     check(
