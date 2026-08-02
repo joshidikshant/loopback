@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose something Loopback should do that it does not.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Loopback is deliberately only the bus and the capture layer — crash
+        capture, session replay and browser driving are borrowed from mature
+        MCP-native tools rather than rebuilt (docs/02-build-vs-borrow-memo.md).
+        A proposal that moves that line needs to say why borrowing does not work.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you hit in real use — not the feature, the thing that made you want it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you want it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >-
+        The existing doors are the widget, `POST /ingest`, the MCP tools and the
+        /queue page. Which came closest, and where did it stop?
+
+  - type: checkboxes
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >-
+        Deferred-until-demanded is the default here — the roadmap holds several
+        features waiting for exactly this.
+      options:
+        - label: I have hit this in real use, not just in principle

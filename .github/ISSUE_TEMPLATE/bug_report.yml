@@ -1,0 +1,82 @@
+name: Bug report
+description: Something behaves differently from what the docs say it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every field below is something the first triage question would ask for
+        anyway. If the problem is exploitable, do not file it here — see
+        SECURITY.md for the private channel.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence that shows it, including the command you ran.
+      placeholder: |
+        1. loopback-mcp-server --http
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Loopback version
+      description: >-
+        `loopback-mcp-server --help` prints it on the first line; a running hub
+        also reports it at `GET /health`. Or read `version` from package.json.
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: "`node -v` — Loopback needs >= 22.13 for built-in node:sqlite."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent / client
+      options:
+        - Claude Code
+        - Codex
+        - Gemini CLI
+        - Another MCP client
+        - No agent — widget or HTTP only
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      description: How the server was running when it happened.
+      options:
+        - stdio (the agent spawns the server)
+        - --http on 127.0.0.1 (the hub)
+        - --http --host <non-loopback> (LAN bind, bearer token)
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Server output, failing request, console trail
+      description: >-
+        Server stderr, the browser console, the response body of a failing call.
+        Redact any token before pasting.
+      render: text
