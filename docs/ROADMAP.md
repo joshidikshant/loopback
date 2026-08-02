@@ -6,10 +6,8 @@ audit arc that took the suite from 11/20 to 20/20 — lives in the
 
 ## Open
 
-**The MCP Registry listing is one version behind.** 0.9.3 is on npm; the
-registry still resolves to 0.9.2 because `mcp-publisher`'s token had expired at
-release time. `mcp-publisher login` then `mcp-publisher publish` closes it, and
-`npm run verify:release` is what reports the gap.
+**Nothing.** 0.9.4 is live on all three channels and verified against the
+published artifacts — `npm run verify:release` is 63/63.
 
 Resolved in 0.9.3: `main` had been red for 16 consecutive `ci.yml` runs from
 2026-07-27 (last green `623aa05`), with 0.9.0, 0.9.1 and 0.9.2 all published on
@@ -21,9 +19,9 @@ Distribution is complete end to end:
 
 | Surface | State |
 |---|---|
-| GitHub | [joshidikshant/loopback](https://github.com/joshidikshant/loopback) — tagged and released v0.9.0–v0.9.3 |
-| npm | `loopback-mcp-server@0.9.3` — cold-verified from the registry |
-| MCP Registry | `io.github.joshidikshant/loopback` — status `active`, **listing at 0.9.2** |
+| GitHub | [joshidikshant/loopback](https://github.com/joshidikshant/loopback) — tagged and released v0.9.0–v0.9.4 |
+| npm | `loopback-mcp-server@0.9.4` — cold-verified from the registry |
+| MCP Registry | `io.github.joshidikshant/loopback` — status `active`, listing at 0.9.4 (`isLatest`) |
 
 Every P1–P3 shipped or moved to Deliberate with a measured rationale. What the
 project needs next is not code: it is an adopter who is not DJ.
