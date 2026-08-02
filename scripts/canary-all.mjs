@@ -307,6 +307,20 @@ const CASES = [
       mutate("README.md", (s) => s.replace("~58KB (19KB gzipped)", "~46KB (15KB gzipped)")),
   },
   {
+    gate: "docs-facts-gate (open-endpoint count)",
+    cmd: ["node", ["scripts/docs-facts-gate.mjs"]],
+    guards: "the README's open-on-LAN list matching what requireAuth allows",
+    apply: () =>
+      // /health was genuinely open in the code and missing from the table, with
+      // the sentence above it still saying "Three".
+      mutate("README.md", (s) =>
+        s.replace(
+          "| `GET /health` | Liveness only",
+          "| `GET /health-REMOVED` | Liveness only",
+        ),
+      ),
+  },
+  {
     gate: "docs-facts-gate (undocumented route)",
     cmd: ["node", ["scripts/docs-facts-gate.mjs"]],
     guards: "every HTTP route appearing in the README surface table",
