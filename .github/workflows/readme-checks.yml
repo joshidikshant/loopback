@@ -1,0 +1,26 @@
+name: readme-checks
+# Guards the two failure classes the growth-kit audit found in this repo's README:
+# a dead link presented as evidence (the synthetic-PR caption), and — as a standing
+# disqualifier — star-begging copy. Link-checks README + docs on change and weekly
+# (external links rot on their own schedule).
+# Security note: no untrusted event interpolation anywhere in this workflow —
+# every run: command is static.
+on:
+  push:
+    paths: ["README.md", "docs/**", "integrations/**"]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  readme-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Link check (README, docs, integrations)
+        run: >
+          npx --yes linkinator README.md docs integrations --markdown
+          --skip "127.0.0.1|localhost|^#|shields.io"
+      - name: Star-begging guard (growth-kit disqualifier class)
+        run: |
+          ! grep -riE "star (us|this|the repo)|give (us|it) a star|drop a star|smash[^.]*star" README.md docs integrations

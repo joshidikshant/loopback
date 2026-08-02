@@ -1,10 +1,11 @@
 # Loopback
 
-**Pin feedback on your live app. Any coding agent fixes it. The pin turns green.**
+**Pin feedback on the app you're building. Any coding agent claims it. The pin turns green when the fix is verified.**
 
 Loopback is the interactive feedback layer between real product usage and your
-coding agents: one script tag makes any web app commentable
-(Vercel-toolbar-style toolbar, element-anchored pins), every pin auto-captures
+coding agents: one script tag makes the app you're running locally commentable
+(Vercel-toolbar-style toolbar, element-anchored pins; deployed public sites go
+via the `/ingest` rails instead — see [surface compatibility](docs/05-surface-compatibility.md)), every pin auto-captures
 the *functional* context — failing requests **with response bodies**, console
 trail, the route journey that led there, LLM run metadata, typed repro steps —
 and lands in one project-tagged queue that **Claude
