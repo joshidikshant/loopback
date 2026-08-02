@@ -5,6 +5,20 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-08-02
+
+Ships the `init` fix below to adopters. 0.9.1 still writes a git-clone MCP
+config, so source being correct changed nothing until this release.
+
+### Added — `npm run bump <version>`
+A release moves SIX hand-typed fields across five files (package.json,
+`SERVER_VERSION`, server.json's version *and* every `packages[].version`, the
+plugin manifest, and the marketplace entry). The gates enforce that they agree,
+so a partial bump fails CI — but a *forgotten* bump fails later and worse:
+`npm publish` refuses with "cannot publish over the previously published
+versions" after the notes are written and the commit is pushed. That happened
+on this release. The command edits only; build, gates and publish stay manual.
+
 ### Fixed — `init` handed every adopter a git-clone MCP config
 `serverCommand()` emitted `npx -y github:joshidikshant/loopback` on any
 EPHEMERAL run — which is precisely how the README documents onboarding

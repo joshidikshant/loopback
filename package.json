@@ -2,7 +2,7 @@
   "name": "loopback-mcp-server",
   "mcpName": "io.github.joshidikshant/loopback",
   "author": "Dikshant Joshi",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "files": [
     "dist",
     "widget",
@@ -21,6 +21,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "bump": "node scripts/bump-version.mjs",
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
