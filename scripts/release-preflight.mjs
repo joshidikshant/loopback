@@ -100,6 +100,20 @@ if (!wantSha) {
   } else {
     ok(`${sha.slice(0, 7)} is pushed (${onRemote.out.split("\n")[0].trim()})`);
   }
+
+  // Tag discipline stopped exactly when public publishing began: v0.3.0-v0.8.0
+  // are all tagged, and 0.9.0, 0.9.1 and 0.9.2 — the only versions that ever
+  // reached npm — were not. An untagged release is one nobody can check out.
+  const pkgVersion = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8")).version;
+  const tag = `v${pkgVersion}`;
+  const tagged = tryRun("git", ["rev-list", "-n", "1", tag]);
+  if (!tagged.out) {
+    bad(`${tag} does not exist — tag the release commit before publishing:\n     git tag -a ${tag} -m "${tag}" && git push origin ${tag}`);
+  } else if (tagged.out !== sha) {
+    bad(`${tag} points at ${tagged.out.slice(0, 7)}, not the commit being published (${sha.slice(0, 7)})`);
+  } else {
+    ok(`${tag} points at the commit being published`);
+  }
 }
 
 // ── did CI pass on it ────────────────────────────────────────────────────────
