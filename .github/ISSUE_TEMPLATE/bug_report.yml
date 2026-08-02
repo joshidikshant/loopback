@@ -33,7 +33,7 @@ body:
     attributes:
       label: Loopback version
       description: >-
-        `loopback-mcp-server --help` prints it on the first line; a running hub
+        `loopback-mcp-server --version` prints it; a running hub
         also reports it at `GET /health`. Or read `version` from package.json.
     validations:
       required: true

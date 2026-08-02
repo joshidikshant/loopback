@@ -267,6 +267,31 @@ const CASES = [
       ),
   },
   {
+    gate: "smoke (blank-after-trim input)",
+    cmd: ["npm", ["run", "-s", "smoke"]],
+    build: BUILD,
+    guards: "a whitespace-only title being rejected rather than filed",
+    apply: () =>
+      // Drop the trim and "   " is three characters again, which clears min(3).
+      mutate("src/schemas.ts", (s) =>
+        s.replace(
+          `  title: z\n    .string()\n    .trim()\n    .min(3)`,
+          `  title: z\n    .string()\n    .min(3)`,
+        ),
+      ),
+  },
+  {
+    gate: "e2e (unknown CLI argument)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    build: BUILD,
+    guards: "an unknown argument exiting instead of silently starting a server",
+    apply: () =>
+      // Let unknown arguments fall through again, exactly as they used to.
+      mutate("src/index.ts", (s) =>
+        s.replace("  if (unknown.length) {", "  if (false && unknown.length) {"),
+      ),
+  },
+  {
     gate: "init-gate (canonical ↔ canonical)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     guards: "the repo's two canonical sources driving the same loop",

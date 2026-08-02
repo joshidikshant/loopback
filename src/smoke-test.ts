@@ -292,6 +292,42 @@ async function main(): Promise<void> {
   );
   console.log("✅ strict tool inputs: a typo'd argument errors instead of filing the wrong thing");
 
+  // 7b. A blank title cleared min(3) because three spaces are three characters,
+  // so an item nothing could act on filed successfully. Length checks now run
+  // on the trimmed value.
+  const blankTitle = await callExpectError("loopback_submit_feedback", {
+    project: "demo-web",
+    type: "ui",
+    title: "   ",
+  });
+  assert(
+    /too_small|at least|validation/i.test(blankTitle),
+    `a whitespace-only title is rejected (got: ${blankTitle.slice(0, 80)})`,
+  );
+  const blankProject = await callExpectError("loopback_submit_feedback", {
+    project: "   ",
+    type: "ui",
+    title: "Real enough title",
+  });
+  assert(
+    /too_small|at least|validation/i.test(blankProject),
+    `a whitespace-only project is rejected (got: ${blankProject.slice(0, 80)})`,
+  );
+  // The same trim normalises padding rather than storing it.
+  const padded = await call("loopback_submit_feedback", {
+    project: "  demo-web  ",
+    type: "ui",
+    title: "  Padded title needs trimming  ",
+  });
+  const paddedId = padded.structured.id as string;
+  const paddedBack = await call("loopback_get_feedback", { id: paddedId, response_format: "json" });
+  const paddedItem = paddedBack.structured as unknown as { title: string; project: string };
+  assert(
+    paddedItem.title === "Padded title needs trimming" && paddedItem.project === "demo-web",
+    `padding is trimmed, not stored (got title=${JSON.stringify(paddedItem.title)} project=${JSON.stringify(paddedItem.project)})`,
+  );
+  console.log("✅ blank-after-trim titles and slugs are rejected; padding is normalised");
+
   await mcp.close();
   console.log("\nALL SMOKE TESTS PASSED 🎉");
 }

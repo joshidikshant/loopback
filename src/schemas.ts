@@ -144,8 +144,13 @@ export const statsResultShape = {
 
 /** Shape for submitting a new feedback item (also validates HTTP POST /ingest bodies). */
 export const submitShape = {
+  // .trim() runs BEFORE the length check, so "   " is rejected rather than
+  // counted as three characters. Without it a blank title cleared min(3) and
+  // filed an item nothing in the queue could act on. It also normalises the
+  // padding people paste into slugs and agent names.
   project: z
     .string()
+    .trim()
     .min(1)
     .max(100)
     .describe("Project/repo slug this feedback belongs to, e.g. 'appbroda-web'"),
@@ -154,6 +159,7 @@ export const submitShape = {
   ),
   title: z
     .string()
+    .trim()
     .min(3)
     .max(200)
     .describe("Short summary, e.g. 'Checkout button dead on mobile Safari'"),
@@ -269,6 +275,7 @@ export const claimShape = {
   ...idShape,
   agent: z
     .string()
+    .trim()
     .min(1)
     .max(100)
     .describe("Name of the claiming agent, e.g. 'claude-code', 'codex', 'gemini'"),
@@ -297,8 +304,8 @@ export const updateStatusShape = {
 
 export const addCommentShape = {
   ...idShape,
-  author: z.string().min(1).max(100).describe("Comment author, e.g. 'claude-code' or 'dj'"),
-  body: z.string().min(1).max(10000).describe("Comment text (markdown ok)"),
+  author: z.string().trim().min(1).max(100).describe("Comment author, e.g. 'claude-code' or 'dj'"),
+  body: z.string().trim().min(1).max(10000).describe("Comment text (markdown ok)"),
 };
 
 export const linkChangeShape = {
@@ -343,11 +350,11 @@ export const statsShape = {
 
 /** Editing an item after it was filed. Every field optional — patch semantics. */
 export const updateShape = {
-  title: z.string().min(3).max(200).optional().describe("Corrected summary"),
+  title: z.string().trim().min(3).max(200).optional().describe("Corrected summary"),
   body: z.string().max(10000).optional().describe("Corrected description"),
   severity: severityEnum.optional().describe("Re-ranked severity"),
   type: typeEnum.optional().describe("Corrected dimension"),
-  project: z.string().min(1).max(100).optional().describe("Move to another project slug"),
+  project: z.string().trim().min(1).max(100).optional().describe("Move to another project slug"),
   route: z.string().max(500).optional().describe("Corrected route"),
   author: z
     .string()
