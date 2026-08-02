@@ -5,6 +5,20 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed — `init` no longer writes this machine's absolute path into external repos' configs
+Onboarding an external repo from a stable local checkout wrote the checkout's
+absolute `dist/index.js` path — username included — into `.mcp.json`,
+`.codex/config.toml` and `.gemini/settings.json`. dj-system committed exactly
+that to a public repo (its PR #22), a config that works on one machine and
+breaks on every clone. The behaviour was deliberate back when nothing was
+published ("fast startup", fb_mrsuu878); it has been wrong since 0.9.0 hit
+npm. The stable-external branch of `serverCommand()` now emits
+`npx -y loopback-mcp-server` like the ephemeral branch; onboarding a repo the
+server lives in keeps the repo-relative `node ./dist/index.js`. `init-gate`
+now asserts the external renders are machine-path-free — previously it only
+checked the self-onboarded configs, so this exact leak had no failing gate.
+(fb_msc0vh4e)
+
 ## [0.9.3] — accuracy pass: a red CI nobody was watching, and docs nothing checked
 
 ### Fixed — CI had been red for six days, and three releases shipped on top of it

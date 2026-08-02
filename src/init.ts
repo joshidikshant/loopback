@@ -147,18 +147,23 @@ function renderedSkill(project: string): string {
  * - Server lives inside the repo being onboarded (Loopback onboarding itself,
  *   or a monorepo vendoring it) → repo-relative path, so the committed config
  *   works on every clone and leaks no machine paths.
- * - Stable checkout elsewhere → absolute path (fast startup).
- * - Ephemeral npx run → `npx loopback-mcp-server` (the published package).
+ * - Everything else → `npx loopback-mcp-server` (the published package).
+ *
+ * A stable external checkout used to get its absolute path for fast startup —
+ * which wrote a username-bearing machine path into configs that get committed
+ * (dj-system shipped exactly that in a public repo). These files outlive the
+ * machine that ran init; portability beats cold-start speed.
  */
 function serverCommand(cwd: string): { command: string; args: string[] } {
   const entry = resolve(PACKAGE_ROOT, "dist", "index.js");
   const ephemeral = entry.split(sep).includes("_npx");
-  if (ephemeral || !existsSync(entry)) return { command: "npx", args: ["-y", NPM_SPEC] };
-  const inside = relative(cwd, entry);
-  if (!inside.startsWith("..") && !isAbsolute(inside)) {
-    return { command: "node", args: [`./${inside.split(sep).join("/")}`] };
+  if (!ephemeral && existsSync(entry)) {
+    const inside = relative(cwd, entry);
+    if (!inside.startsWith("..") && !isAbsolute(inside)) {
+      return { command: "node", args: [`./${inside.split(sep).join("/")}`] };
+    }
   }
-  return { command: "node", args: [entry] };
+  return { command: "npx", args: ["-y", NPM_SPEC] };
 }
 
 function readIfExists(path: string): string | null {

@@ -115,11 +115,28 @@ assert(
 );
 assert(stdout.includes('data-project="test-app"'), "init prints the widget embed with the slug");
 
-// An external consuming repo correctly gets an absolute path to the checkout.
-// But when the server lives INSIDE the repo being onboarded — this repo, which
-// self-onboards and commits the result — the path must be repo-relative, or the
-// committed config leaks a username and breaks on every other clone.
+// No branch of serverCommand() may leak a machine path into a config that
+// gets committed. An EXTERNAL repo onboarded from a stable checkout (this
+// very gate run: CLI in this repo, cwd a temp dir) gets the published
+// package via npx — the old absolute-path "fast startup" branch wrote a
+// username-bearing path that dj-system committed to a public repo, where it
+// worked on exactly one machine.
 const HOME = process.env.HOME ?? "/Users";
+assert(
+  mcpJson.mcpServers?.loopback?.command === "npx" &&
+    (mcpJson.mcpServers?.loopback?.args ?? []).includes("loopback-mcp-server"),
+  ".mcp.json for an external repo launches the published package via npx",
+);
+for (const cfg of [".mcp.json", ".codex/config.toml", ".gemini/settings.json"]) {
+  const body = read(fresh, cfg) ?? "";
+  assert(
+    !body.includes(HOME) && !body.includes(process.cwd()),
+    `external ${cfg} carries no machine path`,
+  );
+}
+// When the server lives INSIDE the repo being onboarded — this repo, which
+// self-onboards and commits the result — the path must be repo-relative, or
+// the committed config leaks a username and breaks on every other clone.
 for (const cfg of [".mcp.json", ".codex/config.toml", ".gemini/settings.json"]) {
   const body = read(process.cwd(), cfg);
   if (body === null) continue; // repo not self-onboarded (fine for consumers)

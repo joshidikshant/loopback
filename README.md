@@ -461,9 +461,11 @@ interaction-layer analysis, technical path). Calls made in this build:
    default".
 4. **Codex gets project-scoped `.codex/config.toml`** — verified supported
    (loads once you trust the repo); `init` also prints the global block.
-5. **`init` writes the local checkout's absolute path when stable, `npx
-   github:` otherwise** — fast startup for clones, zero-setup portability for
-   npx runs.
+5. **`init` writes a repo-relative path when the server lives inside the
+   onboarded repo, `npx loopback-mcp-server` everywhere else** — committed
+   configs must work on every clone; a machine path works on exactly one.
+   (Originally: absolute path for stable checkouts, `npx github:` for
+   ephemeral runs — both retired once the package was on npm.)
 6. **`/ingest` accepts unknown extra fields** (no `.strict()`) — older hubs
    must not reject newer widgets; forward compatibility beats strictness at
    the ingestion boundary.
