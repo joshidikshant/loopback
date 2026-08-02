@@ -267,6 +267,20 @@ const CASES = [
       ),
   },
   {
+    gate: "init-gate (canonical ↔ canonical)",
+    cmd: ["node", ["scripts/init-gate.mjs"]],
+    guards: "the repo's two canonical sources driving the same loop",
+    apply: () =>
+      // A step added to the playbook and not to the skill: the exact manual-sync
+      // failure the check exists for.
+      mutate("integrations/instructions-src.md", (s) =>
+        s.replace(
+          "### The loop\n",
+          "### The loop\n\n0. `loopback_get_stats()` — check which projects have open items.\n",
+        ),
+      ),
+  },
+  {
     gate: "link-gate",
     cmd: ["node", ["scripts/link-gate.mjs"]],
     guards: "a dead link in the README being caught",

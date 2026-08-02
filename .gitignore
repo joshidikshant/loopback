@@ -7,6 +7,10 @@ dist/
 dashboard/src/tokens.generated.css
 dashboard/node_modules/
 .dashboard-freshness/
+# tsc's incremental cache — machine-generated churn, and the only build artifact
+# that was ever tracked. public/ build output IS committed, deliberately: it is
+# how the shadcn registry and the dashboard are served.
+*.tsbuildinfo
 
 # Impeccable (design anti-pattern detector).
 # The CI gate runs the version-pinned npm devDependency, so nothing here is
