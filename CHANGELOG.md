@@ -68,6 +68,18 @@ the wire" was measured with the `gzip(1)` CLI, but the server serves `gzipSync`
 at zlib's default level — 19,770 B. Three plausible numbers for one file, so the
 gate measures it the way `src/http.ts` actually produces it.
 
+The gate also caught a security claim CI never could: the README said "Three
+endpoints stay open on a LAN bind" and listed three, while `requireAuth` lets
+four through — `GET /health` was open in the code and absent from the table. It
+now derives the open set from `requireAuth` itself.
+
+And then the canary caught **this gate** being decorative, which is the whole
+argument for having one. The first version substring-searched the table for each
+open path, so the canary's mutation — renaming the row to `/health-REMOVED` —
+still *contained* `/health` and the check passed with its subject broken. It now
+parses the path out of each row's `METHOD /path` cell and compares sets in both
+directions, so a renamed, missing or invented row all fail.
+
 ### Fixed — the README's shadcn section was mangled, on GitHub and on npm
 A sentence cut off mid-clause, a contradictory replacement pasted over it, and
 an orphan `free).` fragment. Live on `main` and in the published 0.9.2 readme,
