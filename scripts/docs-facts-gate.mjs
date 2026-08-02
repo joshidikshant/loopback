@@ -140,16 +140,24 @@ const authBody = authFn.slice(0, authFn.indexOf("const presented"));
 const openPaths = [...new Set([...authBody.matchAll(/req\.path === "([^"]+)"/g)].map((m) => m[1]))];
 const openSection = readme.slice(readme.indexOf("stay open on a LAN bind"));
 const openTable = openSection.slice(0, openSection.indexOf("\n\n", openSection.indexOf("|---|---|")));
+// Parse the path out of each row's leading `METHOD /path` cell rather than
+// substring-searching the table. A substring test is not good enough here and
+// the canary proved it: renaming the row to `/health-REMOVED` still CONTAINS
+// "/health", so the check passed with its subject broken — decorative, by this
+// repo's own definition.
+const documentedOpen = [...new Set(
+  [...openTable.matchAll(/^\| `[A-Z]+ ([^`?]+)[^`]*`/gm)].map((m) => m[1].trim()),
+)];
 const openRows = (openTable.match(/^\| `/gm) ?? []).length;
 const NUMBER = { One: 1, Two: 2, Three: 3, Four: 4, Five: 5, Six: 6 };
 const stated = readme.match(/(\w+) endpoints stay open on a LAN bind/);
+const missingOpen = openPaths.filter((p) => !documentedOpen.includes(p));
+const extraOpen = documentedOpen.filter((p) => !openPaths.includes(p));
 check(
-  openPaths.every((p) => openTable.includes(p)),
-  `every endpoint requireAuth leaves open is in the README table${
-    openPaths.filter((p) => !openTable.includes(p)).length
-      ? ` — missing: ${openPaths.filter((p) => !openTable.includes(p)).join(", ")}`
-      : ""
-  }`,
+  missingOpen.length === 0 && extraOpen.length === 0,
+  `the README's open-on-LAN table is exactly what requireAuth allows${
+    missingOpen.length ? ` — undocumented: ${missingOpen.join(", ")}` : ""
+  }${extraOpen.length ? ` — documented but not open: ${extraOpen.join(", ")}` : ""}`,
 );
 check(
   openRows === openPaths.length,
