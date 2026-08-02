@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.joshidikshant/loopback",
-  "description": "Feedback bus for coding agents: pin feedback on the app you're building; an agent claims it; the pin turns green when the fix is verified",
+  "description": "Feedback bus for coding agents: pin feedback on the app you're building; a fix turns the pin green",
   "repository": {
     "url": "https://github.com/joshidikshant/loopback",
     "source": "github"
