@@ -5,6 +5,107 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.3] — accuracy pass: a red CI nobody was watching, and docs nothing checked
+
+### Fixed — CI had been red for six days, and three releases shipped on top of it
+`ci.yml` failed on **sixteen consecutive runs**, from 2026-07-27 (`f7dfa27`)
+through 2026-08-02. Last green was `623aa05`. 0.9.0, 0.9.1 and 0.9.2 were all
+published inside that window, so all three shipped two real WCAG 1.4.4/1.4.10
+failures as product defects, not just a red badge.
+
+The a11y gate had **never passed on CI at all**: it was added in `d2ca476` and
+pushed in a batch with 27 other commits, so its first run was already red.
+
+The bug was real and one line. `Updated` rendered `item.updated_at` as a bare
+ISO timestamp with no `break-all`, while every other value in that card
+(project, source/reporter, assignee, route) had one. An ISO string is a single
+24-char token with no break opportunity, so at 200% text zoom it set a 236px
+min-content floor that the section's `min-w-0` could not shrink. On macOS that
+lands at 301px and passes a 320px viewport; on CI's Linux font metrics it
+measures ~325px — exactly the `{"s":325,"c":320}` in every failing run, and why
+it never reproduced locally. Now clears 320px with 40px of headroom.
+
+### Added — `release-preflight`: publishing requires a green, pushed, tagged commit
+The gates verify the source. `verify:release` deliberately runs *after* a
+publish, against published artifacts, where npm's immutability means it can only
+report damage. Nothing ever asked the question in between, which is how a red
+`main` stayed publishable three times.
+
+`release-preflight` runs as `prepublishOnly`: clean tree, commit pushed, a
+completed successful `ci.yml` run for that exact sha, and a `v<version>` tag
+pointing at it. It **fails closed** — an unreachable GitHub is a refusal, not a
+pass, since "unknown" is the state that let the last three releases through.
+`LOOPBACK_ALLOW_RED_CI=1` is the explicit, auditable override.
+
+Two traps found by running it rather than reading it: the GitHub API matches
+`head_sha` on the full 40-char sha only, so an abbreviated sha returns an empty
+run list — indistinguishable from "never tested"; and a fail-closed gate sails
+through a canary that only checks for a non-zero exit, so the sweep asserts
+**both** directions against two immutable commits (`10a1c6d` red must fail,
+`623aa05` green must pass).
+
+Tags `v0.9.0`, `v0.9.1` and `v0.9.2` were created retroactively. Tag discipline
+had stopped exactly when public publishing began: everything from v0.3.0 to
+v0.8.0 is tagged, and the only three versions that ever reached npm were not.
+
+### Added — `docs-facts-gate`: the numbers in the docs are re-derived from the code
+Every structural gate was green while the docs drifted, because none of them
+ever read a *claim*. Everything that had rotted was a hand-typed figure:
+
+- the widget was quoted **four** ways — 46KB/15KB, 57KB/19KB, 57,183 B, ~29KB —
+  against a real 59,443 B, and two separate commits each claimed to have
+  "corrected the widget size" while fixing one occurrence out of two;
+- "The MCP bus — 10 tools" sat above a 9-row table, missing
+  `loopback_update_feedback`, which the 0.8.0 entry below announced;
+- the HTTP surface table omitted all three attachment endpoints;
+- the shadcn section documented two registry items and shipped three;
+- the repo map claimed `init` writes `.claude-plugin/` (it does not) and that
+  `init-gate` re-renders it (it asserts a version), and omitted `.github/` and
+  `.impeccable/`.
+
+Measuring it exposed a smaller error inside the bigger one: "19,751 B gzipped on
+the wire" was measured with the `gzip(1)` CLI, but the server serves `gzipSync`
+at zlib's default level — 19,770 B. Three plausible numbers for one file, so the
+gate measures it the way `src/http.ts` actually produces it.
+
+### Fixed — the README's shadcn section was mangled, on GitHub and on npm
+A sentence cut off mid-clause, a contradictory replacement pasted over it, and
+an orphan `free).` fragment. Live on `main` and in the published 0.9.2 readme,
+which is why this needed a release rather than a docs commit.
+
+### Fixed — `link-gate`: the link check had never checked a link
+The CI step had been green since the day it was added while scanning **zero**
+links, for two independent reasons: `linkinator README.md docs integrations`
+silently ignores every path after the first, and `--skip "127.0.0.1|…"` matched
+the root linkinator serves the files from, so the crawl never started. That one
+pattern took the scan from 24 links to 0, and "Successfully scanned 0 links"
+exits 0. The gate now asserts a **minimum link count per target**, because the
+failure was never a broken link — it was an empty crawl.
+
+### Added — `init-gate` covers the seam between the two canonical sources
+Every parity check ran from one canonical source down to its renderings.
+Nothing compared the two canonical sources to *each other*, and
+`integrations/instructions-src.md` says outright that the skill body "mirrors
+this text and must be updated with it" — a manual sync, and the last drift class
+with no check. They are deliberately not byte-identical, so the invariant is the
+loop: both must drive the same tools in the same order.
+
+### Fixed — smaller corrections
+- `docs/05-surface-compatibility.md` stated three different LAN-auth realities
+  in one document; the bearer token shipped, so the "next security milestone"
+  text is gone.
+- `docs/ROADMAP.md` was stale on its own date, the npm version and the canary
+  count, and claimed "Open: **Nothing**" while CI was red.
+- CHANGELOG dated 0.9.1 to the version-bump commit (2026-07-27) rather than its
+  actual npm publish (2026-08-01) and registry listing (2026-08-02).
+- `integrations/claude.md` labelled an npm install "zero-install from GitHub".
+- `server.json` had `websiteUrl: null`, so the registry entry carried no link.
+- README overstated capture: buffers hold 30 console lines and 30 network calls,
+  but a filed report carries the most recent **15 of each**.
+- `dashboard/tsconfig.tsbuildinfo`, tsc's incremental cache, was tracked.
+- Added `CONTRIBUTING.md`, `SECURITY.md` and issue/PR templates — community
+  health was 42%.
+
 ### Fixed — the hub exited 0 on a taken port
 A second `--http --port <taken>` printed its success banner and exited **0**,
 having served nothing: express's listen callback fires even when the bind failed
@@ -39,10 +140,13 @@ remainder:
   serialised Error). The cold handshake is guarded, so a dead install is one red
   check instead of a lost run that skipped two whole channels.
 
-Sweep is 20. Two of these were caught being decorative by their own canaries
-before landing — a port-collision mutation that fell through to a branch whose
-message still matched, and a collision probe pointed at a `0.0.0.0` hub from a
-`127.0.0.1` client, which never collided at all.
+Two of these were caught being decorative by their own canaries before landing —
+a port-collision mutation that fell through to a branch whose message still
+matched, and a collision probe pointed at a `0.0.0.0` hub from a `127.0.0.1`
+client, which never collided at all.
+
+The canary sweep ends this release at **27** checks (20 before the gates above),
+and every gate added here is canaried in both directions where it can refuse.
 
 ## [0.9.2] — 2026-08-02
 
