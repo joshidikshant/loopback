@@ -42,4 +42,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      # The release-preflight cases read a commit's CI conclusion through `gh`,
+      # which needs a token. github.token is the run's own credential, not event
+      # data, and it is passed via env rather than interpolated into a command.
+      # Without it the gate fails closed and its red case would pass for the
+      # wrong reason — which is exactly what its green case catches.
       - run: node scripts/canary-all.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}

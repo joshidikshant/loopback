@@ -82,7 +82,9 @@ for (const e of edits) console.log(`  ✅ ${e}`);
 console.log(`
 Next:
   npm run build && npm run smoke && node scripts/init-gate.mjs   # parity gates
-  git commit && git push                                          # push BEFORE verifying
+  git commit && git push                                          # push BEFORE publishing
+  # …then WAIT for CI to go green on that commit. npm publish now runs
+  # release-preflight first and refuses a red or still-running commit.
   npm publish --otp=<code>
   mcp-publisher publish
   npm run verify:release

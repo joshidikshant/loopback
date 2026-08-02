@@ -23,6 +23,8 @@
     "build": "tsc",
     "bump": "node scripts/bump-version.mjs",
     "prepare": "npm run build",
+    "prepublishOnly": "node scripts/release-preflight.mjs",
+    "preflight": "node scripts/release-preflight.mjs",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "smoke": "npm run build && node dist/smoke-test.js",
