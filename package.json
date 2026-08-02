@@ -2,7 +2,7 @@
   "name": "loopback-mcp-server",
   "mcpName": "io.github.joshidikshant/loopback",
   "author": "Dikshant Joshi",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "files": [
     "dist",
     "widget",

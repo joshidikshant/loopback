@@ -5,6 +5,14 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.4] — 2026-08-02
+
+Ships the machine-path fix to adopters. Published 0.9.3 still writes a
+username-bearing absolute path into committed agent configs when `init` runs
+from an external checkout — the leak `dj-system` already shipped publicly —
+so source being fixed changed nothing until this release. Also carries the
+port-collision fix (0.9.3 exits 0 on a taken port, banner and all).
+
 ### Fixed — `init` no longer writes this machine's absolute path into external repos' configs
 Onboarding an external repo from a stable local checkout wrote the checkout's
 absolute `dist/index.js` path — username included — into `.mcp.json`,
