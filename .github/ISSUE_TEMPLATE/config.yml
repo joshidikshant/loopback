@@ -1,0 +1,11 @@
+# Blank issues stay enabled on purpose: this project needs adopters more than it
+# needs tidy metadata, and a stranger with a question should not be turned away
+# at the door. The two forms are the guided path, not a toll gate.
+blank_issues_enabled: true
+contact_links:
+  - name: Docs, quickstart and the surface matrix
+    url: https://github.com/joshidikshant/loopback#readme
+    about: Setup for Claude Code / Codex / Gemini CLI, the HTTP surface, and where the widget does and does not work.
+  - name: Report a security vulnerability
+    url: https://github.com/joshidikshant/loopback/security/advisories/new
+    about: Anything exploitable goes here privately, never in a public issue.
