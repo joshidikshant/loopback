@@ -17,7 +17,7 @@ verified, the pin turns green on the page, live.
 [![node](https://img.shields.io/node/v/loopback-mcp-server)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-https://github.com/user-attachments/assets/77c24102-f6e8-44cf-8055-9e9415a4084e
+https://github.com/user-attachments/assets/1e1b2f9f-0130-4b1d-a0dd-3aff8d801d5a
 
 ![The loop, closed: a green verified pin on the form claude-code fixed (PR linked), an amber open pin on the AI answer, and the Loopback panel listing both](assets/loopback-widget-demo.png)
 
