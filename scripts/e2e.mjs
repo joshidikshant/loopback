@@ -14,7 +14,7 @@
  */
 import { pathToFileURL } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { request as httpRequest } from "node:http";
@@ -901,6 +901,50 @@ async function main() {
   );
   rmSync(COLLIDE_DB, { force: true });
   console.log("✅ port collision: exits 1, names the port, no misleading banner");
+
+  // ---- unknown arguments must not become a silent server -------------------
+  // `--version` printed nothing and hung: it fell through to the stdio branch
+  // and waited on a stdin a human terminal never closes, having already opened
+  // the user's real ~/.loopback/loopback.db. A typo did the same. Both are
+  // spawned with a DB path in a directory that must stay EMPTY afterwards —
+  // asserting the exit code alone would not catch the database being touched.
+  const ARG_DIR = mkdtempSync(join(tmpdir(), `loopback-e2e-args-${process.pid}-`));
+  const runCli = (args) =>
+    spawnSync("node", [join(ROOT, "dist", "index.js"), ...args], {
+      encoding: "utf-8",
+      timeout: 15_000,
+      killSignal: "SIGKILL",
+      env: { ...process.env, LOOPBACK_DB: join(ARG_DIR, "must-not-exist.db") },
+    });
+
+  const SERVER_VERSION_EXPECTED = JSON.parse(
+    readFileSync(join(ROOT, "package.json"), "utf-8"),
+  ).version;
+  const version = runCli(["--version"]);
+  assert(
+    version.signal !== "SIGKILL",
+    "--version exits on its own instead of hanging as a stdio server",
+  );
+  assert(version.status === 0, `--version exits 0 (got ${version.status})`);
+  assert(
+    version.stdout.trim() === SERVER_VERSION_EXPECTED,
+    `--version prints the version and nothing else (got ${JSON.stringify(version.stdout.trim().slice(0, 40))})`,
+  );
+
+  const typoArg = runCli(["--no-such-flag"]);
+  assert(typoArg.signal !== "SIGKILL", "an unknown argument exits instead of hanging");
+  assert(typoArg.status === 1, `an unknown argument exits 1 (got ${typoArg.status})`);
+  assert(
+    /unknown argument/i.test(typoArg.stderr) && /--no-such-flag/.test(typoArg.stderr),
+    `and names the argument (stderr: ${typoArg.stderr.split("\n")[0]?.slice(0, 100)})`,
+  );
+
+  assert(
+    readdirSync(ARG_DIR).length === 0,
+    `neither --version nor a typo opened a database (found: ${readdirSync(ARG_DIR).join(", ")})`,
+  );
+  rmSync(ARG_DIR, { recursive: true, force: true });
+  console.log("✅ unknown args: exit 1, name the argument, and never touch the DB");
 
   console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure → human triage");
 }

@@ -9,6 +9,7 @@
  * Options:
  *   --db <path>     SQLite file (default: $LOOPBACK_DB or ~/.loopback/loopback.db)
  *   --port <n>      HTTP port (default: $LOOPBACK_HTTP_PORT or 7077)
+ *   --version       print the version and exit
  *   --help          usage
  */
 
@@ -31,6 +32,37 @@ function hasFlag(flag: string): boolean {
   return process.argv.includes(flag);
 }
 
+/**
+ * Flags that take a value, so the token after them is data and not an argument.
+ * Kept next to the boolean set because getting these two out of sync is how an
+ * argument checker starts rejecting valid input.
+ */
+const VALUE_FLAGS = new Set(["--db", "--port", "--host"]);
+const BOOL_FLAGS = new Set(["--http", "--help", "-h", "--version", "-v"]);
+
+/**
+ * Anything in argv that is not a known flag or the value of one.
+ *
+ * Without this, an unrecognised argument fell through to the default branch and
+ * silently started a stdio server: `loopback-mcp-server --version` printed
+ * nothing, hung forever waiting on a stdin that a human terminal never closes,
+ * and opened the user's real ~/.loopback/loopback.db on the way. A typo did the
+ * same. Validation therefore has to run BEFORE the store is constructed.
+ */
+function unknownArgs(argv: string[]): string[] {
+  const unknown: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (VALUE_FLAGS.has(arg)) {
+      i++; // skip its value
+      continue;
+    }
+    if (BOOL_FLAGS.has(arg)) continue;
+    unknown.push(arg);
+  }
+  return unknown;
+}
+
 const USAGE = `loopback-mcp-server v${SERVER_VERSION} — feedback bus for coding agents (MCP)
 
 One instance serves ALL projects: every item is tagged with a project slug and
@@ -45,6 +77,7 @@ Usage:
   loopback-mcp-server --db /path/to/loopback.db
   loopback-mcp-server init --project <slug> [--agents claude,codex,gemini] [--write]
                                       # onboard the current repo (AGENTS.md, skills, MCP configs ×3)
+  loopback-mcp-server --version       # print the version and exit
 
 Environment:
   LOOPBACK_DB          SQLite path (default ~/.loopback/loopback.db)
@@ -65,9 +98,23 @@ async function main(): Promise<void> {
     await runInit(process.argv.slice(3));
     return;
   }
+  if (hasFlag("--version") || hasFlag("-v")) {
+    console.log(SERVER_VERSION);
+    return;
+  }
   if (hasFlag("--help") || hasFlag("-h")) {
     console.log(USAGE);
     return;
+  }
+  // Before the store: an unknown argument must not open the user's database.
+  const unknown = unknownArgs(process.argv.slice(2));
+  if (unknown.length) {
+    console.error(
+      `loopback-mcp-server: unknown argument${unknown.length > 1 ? "s" : ""} ${unknown
+        .map((a) => `'${a}'`)
+        .join(", ")}\nRun 'loopback-mcp-server --help' for usage.`,
+    );
+    process.exit(1);
   }
 
   const dbPath =

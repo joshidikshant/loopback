@@ -102,6 +102,26 @@ this text and must be updated with it" — a manual sync, and the last drift cla
 with no check. They are deliberately not byte-identical, so the invariant is the
 loop: both must drive the same tools in the same order.
 
+### Fixed — two bugs found by driving the built CLI, not by reading it
+`--version` printed nothing and **hung**. It was not a known flag, so it fell
+through to the default branch, started a stdio server and waited on a stdin that
+a human terminal never closes — after opening the user's real
+`~/.loopback/loopback.db` on the way. Any typo did the same, silently. argv is
+now validated *before* the store is constructed: `--version`/`-v` print the
+version and exit 0, anything unrecognised names itself on stderr and exits 1,
+and neither touches a database. The e2e check asserts that last part by pointing
+the run at a directory that has to stay empty — an exit code alone would not
+have caught the database being opened.
+
+A whitespace-only title was accepted while an empty string was correctly
+rejected: `"   "` is three characters, so it cleared `min(3)`, and the queue
+could hold an item nothing could act on. Length checks now run on the trimmed
+value across the fields where a blank is meaningless — title, project, claiming
+agent, comment author and body, on both submit and update — which also
+normalises the padding people paste into slugs instead of storing it.
+
+Both are canaried; the sweep is 30.
+
 ### Fixed — smaller corrections
 - `docs/05-surface-compatibility.md` stated three different LAN-auth realities
   in one document; the bearer token shipped, so the "next security milestone"
@@ -157,7 +177,7 @@ a port-collision mutation that fell through to a branch whose message still
 matched, and a collision probe pointed at a `0.0.0.0` hub from a `127.0.0.1`
 client, which never collided at all.
 
-The canary sweep ends this release at **28** checks (20 before the gates above),
+The canary sweep ends this release at **30** checks (20 before the gates above),
 and every gate added here is canaried in both directions where it can refuse.
 
 ## [0.9.2] — 2026-08-02
