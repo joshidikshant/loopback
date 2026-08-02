@@ -22,7 +22,7 @@ components theme themselves from that project's palette.
 
 What was deliberately **not** done: React, Tailwind, and Radix are not
 dependencies and never will be. The widget is injected into arbitrary host
-pages and must stay a single ~29KB dependency-free file; the server must stay
+pages and must stay a single ~58KB dependency-free file; the server must stay
 `npx`-installable with `tsc` as its only build.
 
 ## The tokens

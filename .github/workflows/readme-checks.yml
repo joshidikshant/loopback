@@ -17,10 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # This step used to invoke linkinator directly and scanned ZERO links
+      # while reporting success — extra path arguments are ignored, and the
+      # bare 127.0.0.1 skip matched linkinator's own local server root. The
+      # gate asserts a minimum link count per target so an empty crawl fails.
       - name: Link check (README, docs, integrations)
-        run: >
-          npx --yes linkinator README.md docs integrations --markdown
-          --skip "127.0.0.1|localhost|^#|shields.io"
+        run: node scripts/link-gate.mjs
       - name: Star-begging guard (growth-kit disqualifier class)
         run: |
           ! grep -riE "star (us|this|the repo)|give (us|it) a star|drop a star|smash[^.]*star" README.md docs integrations

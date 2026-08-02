@@ -43,7 +43,7 @@ crash/replay capture.
 | **WebView inside a native app** (WKWebView / Android WebView) | 1 | ✅ | Widget inside the webview; native shell unaffected |
 | **Native macOS / Windows** (SwiftUI·AppKit / WinUI·WPF) | 2 | ✅ | No DOM → no pins. A ~10-line debug-menu/hotkey handler POSTs `/ingest` with `route`=screen name, `console`=log tail, `extra`=build info (snippets below) |
 | **iOS / Android — simulator & emulator** | 2 | ✅ | iOS simulator shares the host's loopback; Android: `adb reverse tcp:7077 tcp:7077`. Then POST `/ingest` from a shake gesture or debug menu |
-| **iOS / Android — physical device on LAN** | 2 | ✅ v0.4.0 | Run the hub with `--host 0.0.0.0` (opt-in; **no auth — trusted networks only**, the server warns loudly) and point the app at `http://<mac-ip>:7077` |
+| **iOS / Android — physical device on LAN** | 2 | ✅ v0.4.0 | Run the hub with `--host 0.0.0.0` (opt-in; **prints a bearer token — trusted networks only**, the server warns loudly) and point the app at `http://<mac-ip>:7077` |
 | **iOS / Android — production** | 3 | ✅ via rails | Sentry SDK (crashes/errors) + PostHog SDK (replays/analytics) in the app; agents reach them via their MCPs today; a scheduled bridge into `/ingest` (`source: "sentry"|"posthog"`) is the roadmap ingestor |
 | **CLI / TUI / scripts / CI / cron** | 2 | ✅ | `curl -X POST :7077/ingest` with `reporter:"system"` — this repo's own CI-adjacent path; how the dogfood run filed most items |
 | **Coding agents / LLM automations** | 2 | ✅ | MCP tools directly (`reporter:"agent"`), or `/ingest` with `extra.context` run metadata — the `data-loopback-context` pattern, hand-rolled |
@@ -121,8 +121,7 @@ curl -s -X POST http://127.0.0.1:7077/ingest -H 'Content-Type: application/json'
 - `--host 0.0.0.0` requires a bearer token (auto-generated, or `LOOPBACK_TOKEN`);
   `POST /ingest`, `/widget.js` and the pins projection stay open so the widget works;
   use it for device testing on networks you trust, and front it with a
-  token-gated reverse proxy for anything else. A built-in bearer token is the
-  next security milestone before any non-LAN exposure.
+  token-gated reverse proxy for anything else.
 - Native surfaces get no pins by design — pins are a DOM concept. The visible
   loop for Tier 2 is the `/queue` page (and, later, notifications).
 - Per the project's own rules (three manual reps before automating): native

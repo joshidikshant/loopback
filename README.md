@@ -201,17 +201,24 @@ its pieces and the **shadcn MCP** can discover them:
 
 ```bash
 npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-theme.json
+npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-components.json
 npx shadcn@latest add https://raw.githubusercontent.com/joshidikshant/loopback/main/public/r/loopback-widget.json
 ```
 
-`loopback-theme` adds the `--lb-*` feedback status/severity tokens to your
-  `loopback-theme` ships the FULL shadcn theme contract (background, foreground,
-  primary, muted, ring, radius…) alongside the `--lb-*` domain tokens, so
-  installing it REPLACES your palette. If you only want the Loopback-specific
-  tokens, copy the `--lb-*` block out of `design/tokens.css` instead.
-free). `loopback-widget` drops the capture widget into `public/`. Register
-`"@loopback"` in your `components.json` to install by name and let an agent
-with the shadcn MCP browse the registry.
+Three items:
+
+- **`loopback-theme`** ships the FULL shadcn theme contract (background,
+  foreground, primary, muted, ring, radius…) alongside the `--lb-*` feedback
+  status/severity tokens, so **installing it replaces your palette**. If you
+  only want the Loopback-specific tokens, copy the `--lb-*` block out of
+  [`design/tokens.css`](design/tokens.css) instead.
+- **`loopback-components`** — vanilla CSS recipes for the shadcn component
+  vocabulary (`lb-btn`, `lb-badge`, `lb-card`…), for surfaces that want the
+  look without React.
+- **`loopback-widget`** drops the capture widget into `public/`.
+
+Register `"@loopback"` in your `components.json` to install by name and let an
+agent with the shadcn MCP browse the registry.
 
 ## Where it works (surfaces)
 
@@ -230,18 +237,19 @@ Full matrix, native snippets (Swift/Kotlin/C#/shell), and the honest edges:
 
 ## The widget
 
-~46KB (15KB gzipped) of dependency-free vanilla JS in a shadow-DOM host — it never fights
+~58KB (19KB gzipped) of dependency-free vanilla JS in a shadow-DOM host — it never fights
 your app's CSS or framework.
 
 - **Capture**: pin mode highlights elements on hover; a click opens a
   viewport-clamped form (title / what happened / what you expected / type /
   severity). Type is pre-guessed: `backend` when failed requests exist,
   `usage` when AI context is present.
-- **Functional context, always on**: ring buffers from page load — last 30
-  console lines (log/warn/error + window errors + unhandled rejections), all
-  fetch/XHR calls (url/method/status/ms), and for failures (status ≥ 400 or
-  network error) up to **2KB of response body** into
-  `extra.failed_responses`. Calls to Loopback itself are never recorded.
+- **Functional context, always on**: ring buffers from page load keep the last
+  30 console lines (log/warn/error + window errors + unhandled rejections) and
+  the last 30 fetch/XHR calls (url/method/status/ms); a filed report carries
+  the most recent **15 of each**, plus — for failures (status ≥ 400 or network
+  error) — up to **2KB of response body** into `extra.failed_responses`. Calls
+  to Loopback itself are never recorded.
 - **AI/automation context**: the nearest ancestor with
   `data-loopback-context='{"run_id":...}'` is parsed into `extra.context`.
 - **Selector + element**: stable CSS selector (`#id` / `[data-testid]`
@@ -270,6 +278,7 @@ your app's CSS or framework.
 | `loopback_submit_feedback` | File an item: project, type `ui\|backend\|usage\|ux`, severity `p0–p3`, route/url/selector, console[], network[], repro[], `extra` (run context…) |
 | `loopback_list_feedback` | Filter (project/route/status/type/severity/source/assignee) + paginate (`total`/`has_more`/`next_offset`); severity-then-newest |
 | `loopback_get_feedback` | Full item: all context + linked change + comment trail |
+| `loopback_update_feedback` | Correct an item after filing: title, body, severity, type, project, or route — re-rank a severity, fix a mis-guessed type, move it to the right project |
 | `loopback_claim_feedback` | **Atomic** claim; a conflict names the holder; `force` to take over; `open/triaged → in_progress` |
 | `loopback_update_status` | `open → triaged → in_progress → fixed → verified \| wontfix`; note becomes an audit comment |
 | `loopback_add_comment` | Root-cause notes, questions, reasoning trail |
@@ -290,6 +299,9 @@ Responses are markdown (default) or JSON via `response_format`, always with
 | `GET /queue/:id` | Full item view — all captured context + comment/status actions |
 | `POST /queue/:id/comment` · `POST /queue/:id/status` | Human triage writes (**same-origin only**) |
 | `GET /feedback/:id` | One item with its full trail, as JSON |
+| `POST /feedback/:id/attachments` | Attach a screenshot or asset to an item (`name`/`intent`/`target` as query params, body is the bytes) |
+| `GET /blob/:id/:attachmentId` | Fetch one attachment's bytes |
+| `DELETE /feedback/:id/attachments/:attachmentId` | Remove an attachment |
 | `GET /widget.js` | The embeddable widget |
 | `GET /health` | Liveness |
 
@@ -436,7 +448,7 @@ interaction-layer analysis, technical path). Calls made in this build:
 6. **`/ingest` accepts unknown extra fields** (no `.strict()`) — older hubs
    must not reject newer widgets; forward compatibility beats strictness at
    the ingestion boundary.
-7. **Widget is 57KB / 19KB gzipped, not the ~10KB sketch** — ring buffers, failure-body
+7. **Widget is 58KB / 19KB gzipped, not the ~10KB sketch** — ring buffers, failure-body
    capture, live pins, repro steps, the route journey and the walkthrough earn
    their bytes; still zero deps, one file, served pre-compressed with an ETag.
 8. **Marker-based merges** — `init` re-runs are byte-idempotent; files a human
@@ -457,8 +469,11 @@ skills/         CANONICAL loopback SKILL.md — every other copy is rendered fro
 integrations/   canonical playbook + per-agent setup + widget embed + keep-alive
 plugin/         Claude Code plugin (skill + MCP registration); repo doubles as its marketplace
 scripts/        e2e.mjs · the six gates · canary-all.mjs · screenshot.mjs
+                release-preflight.mjs (pre-publish) · release-verify.mjs (post-publish) · bump-version.mjs
 docs/           the decision history (spec → memo → paths → technical path) + ROADMAP
 assets/         the README screenshot (generated by scripts/screenshot.mjs)
+.github/        ci.yml · canary.yml · readme-checks.yml
+.impeccable/    design-detector config (the skill itself is not vendored — see .gitignore)
 ```
 
 Two manifests at the root do different jobs: `registry.json` publishes the
@@ -475,7 +490,11 @@ AGENTS.md · CLAUDE.md · GEMINI.md   the queue playbook, per agent
 .claude/ .agents/                   the loopback skill for Claude Code / Codex
 .codex/ .gemini/                    per-agent MCP + command registration
 .mcp.json                           MCP server registration for this repo
-.claude-plugin/                     marketplace manifest (repo hosts its own plugin)
 ```
+
+`.claude-plugin/` is the one root dot-directory `init` does **not** write: it is
+the marketplace manifest for the plugin this repo hosts, maintained by hand and
+bumped by `npm run bump`. `init-gate` asserts its version matches rather than
+re-rendering it.
 
 MIT © Dikshant Joshi

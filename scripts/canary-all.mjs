@@ -266,6 +266,39 @@ const CASES = [
         s.replaceAll("${a.name}", "FILE").replaceAll("${a.path}", "PATH"),
       ),
   },
+  {
+    gate: "link-gate",
+    cmd: ["node", ["scripts/link-gate.mjs"]],
+    guards: "a dead link in the README being caught",
+    apply: () =>
+      mutate("README.md", (s) =>
+        s.replace(
+          "https://github.com/getsentry/sentry-mcp",
+          "https://github.com/joshidikshant/loopback/tree/main/this-path-does-not-exist-canary",
+        ),
+      ),
+  },
+  {
+    gate: "docs-facts-gate (tool count)",
+    cmd: ["node", ["scripts/docs-facts-gate.mjs"]],
+    guards: "the README's tool count matching the tools actually registered",
+    apply: () =>
+      mutate("README.md", (s) => s.replace("## The MCP bus — 10 tools", "## The MCP bus — 9 tools")),
+  },
+  {
+    gate: "docs-facts-gate (widget size)",
+    cmd: ["node", ["scripts/docs-facts-gate.mjs"]],
+    guards: "the documented widget size matching the file on disk",
+    apply: () =>
+      mutate("README.md", (s) => s.replace("~58KB (19KB gzipped)", "~46KB (15KB gzipped)")),
+  },
+  {
+    gate: "docs-facts-gate (undocumented route)",
+    cmd: ["node", ["scripts/docs-facts-gate.mjs"]],
+    guards: "every HTTP route appearing in the README surface table",
+    apply: () =>
+      mutate("README.md", (s) => s.replace("| `GET /blob/:id/:attachmentId` |", "| `GET /blob-REMOVED` |")),
+  },
   // 10a1c6d is permanently red (the a11y reflow failure) and 623aa05 is
   // permanently green. Both are immutable history, so these two anchors cannot
   // rot the way a mutation's anchor text can.

@@ -28,6 +28,10 @@ jobs:
       # Design anti-patterns in the shipped UI. Runs after dashboard-gate
       # because it scans the built output, which that gate proves is current.
       - run: node scripts/impeccable-gate.mjs
+      # Re-measures the numbers the docs assert (widget size, tool count, HTTP
+      # routes, registry items). Every other gate checks structure; the drift
+      # that actually accumulated was entirely in hand-typed figures.
+      - run: node scripts/docs-facts-gate.mjs
 
   e2e:
     runs-on: ubuntu-latest
