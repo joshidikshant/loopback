@@ -329,13 +329,14 @@ it does not persist in history or referrers. Tools send
 `Authorization: Bearer <token>`. Comparison is constant-time over a digest, so
 neither the value nor its length leaks through timing.
 
-Three endpoints stay open on a LAN bind, deliberately:
+Four endpoints stay open on a LAN bind, deliberately:
 
 | Open | Why |
 |---|---|
 | `POST /ingest` | The widget runs on a phone against an arbitrary host page and has nowhere to keep a secret. Intake is append-only and rate-limited (60/min per IP, 429 past that): a LAN caller can file noise, not read or change anything, and not fill the disk. |
 | `GET /widget.js` | Anything embedded in a served script is readable by anyone who can fetch it. |
 | `GET /feedback?view=pins` | The minimum needed to draw pins and show one turn green. A strict projection — no body, console, network, repro steps, comments or attachments — of what is already visible on the page. |
+| `GET /health` | Liveness only — `{ok, name, version}`. A keep-alive probe cannot be made to carry a token. |
 
 Everything else — the dashboard, full reads, every write, and `/mcp`, which
 exposes all ten tools — refuses an unauthenticated caller with 401. The split

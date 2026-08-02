@@ -145,7 +145,7 @@ a port-collision mutation that fell through to a branch whose message still
 matched, and a collision probe pointed at a `0.0.0.0` hub from a `127.0.0.1`
 client, which never collided at all.
 
-The canary sweep ends this release at **27** checks (20 before the gates above),
+The canary sweep ends this release at **28** checks (20 before the gates above),
 and every gate added here is canaried in both directions where it can refuse.
 
 ## [0.9.2] — 2026-08-02

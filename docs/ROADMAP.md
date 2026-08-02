@@ -55,7 +55,7 @@ project needs next is not code: it is an adopter who is not DJ.
 ## Verification
 
 Seven gates + `smoke` + `e2e` in CI on every push; `npm run canary` (own
-workflow: path-triggered + weekly) runs 27 checks proving each subject's gate
+workflow: path-triggered + weekly) runs 28 checks proving each subject's gate
 fails when the subject breaks — `release-preflight` in both directions, since a
 gate that refuses everything would otherwise pass its own canary: it blocks a
 commit whose CI is red and still clears one whose CI is green. Every gate's

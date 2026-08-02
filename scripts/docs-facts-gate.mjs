@@ -131,6 +131,35 @@ check(
   }`,
 );
 
+// ── the endpoints left open on a token bind ──────────────────────────────────
+// README said "Three endpoints stay open" and listed three while requireAuth
+// let four through — /health was open in the code and absent from the table.
+// This is a security claim, so it is worth deriving rather than trusting.
+const authFn = httpTs.slice(httpTs.indexOf("requireAuth"));
+const authBody = authFn.slice(0, authFn.indexOf("const presented"));
+const openPaths = [...new Set([...authBody.matchAll(/req\.path === "([^"]+)"/g)].map((m) => m[1]))];
+const openSection = readme.slice(readme.indexOf("stay open on a LAN bind"));
+const openTable = openSection.slice(0, openSection.indexOf("\n\n", openSection.indexOf("|---|---|")));
+const openRows = (openTable.match(/^\| `/gm) ?? []).length;
+const NUMBER = { One: 1, Two: 2, Three: 3, Four: 4, Five: 5, Six: 6 };
+const stated = readme.match(/(\w+) endpoints stay open on a LAN bind/);
+check(
+  openPaths.every((p) => openTable.includes(p)),
+  `every endpoint requireAuth leaves open is in the README table${
+    openPaths.filter((p) => !openTable.includes(p)).length
+      ? ` — missing: ${openPaths.filter((p) => !openTable.includes(p)).join(", ")}`
+      : ""
+  }`,
+);
+check(
+  openRows === openPaths.length,
+  `README lists ${openRows} open endpoints; requireAuth leaves ${openPaths.length} open`,
+);
+check(
+  !!stated && NUMBER[stated[1]] === openPaths.length,
+  `README says "${stated?.[1]} endpoints stay open" and ${openPaths.length} actually do`,
+);
+
 // ── the shadcn registry, enumerated ──────────────────────────────────────────
 const registry = JSON.parse(read("registry.json"));
 const items = (registry.items ?? []).map((i) => i.name);
