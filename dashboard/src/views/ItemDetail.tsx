@@ -424,7 +424,10 @@ export function ItemDetail({
           </time>
         </Section>
         <Section label="Updated">
-          <span className="text-sm text-muted-foreground">{item.updated_at}</span>
+          {/* An ISO timestamp is one 24-char token with no break opportunity, so
+              at 200% zoom it sets a 236px floor that min-w-0 cannot shrink —
+              the same break-all every other value in this card already carries. */}
+          <span className="text-sm break-all text-muted-foreground">{item.updated_at}</span>
         </Section>
         {item.resolution && (
           <Section label="Resolution">
