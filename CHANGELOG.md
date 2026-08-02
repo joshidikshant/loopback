@@ -5,6 +5,45 @@ All notable changes to Loopback are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed — the hub exited 0 on a taken port
+A second `--http --port <taken>` printed its success banner and exited **0**,
+having served nothing: express's listen callback fires even when the bind failed
+(with `address() === null`), and an unhandled `error` on the underlying server
+is not a throw. For a tool people habitually start in a second terminal, silence
+is the worst possible outcome. Now exits 1, names the port, suggests the next
+free one and `lsof`, and suppresses the banner it was about to contradict.
+Found in passing by an agent designing an unrelated check.
+
+### Added — release verification covers what it always claimed to
+`npm run verify:release` went from 24 checks to **63**, closing the audit
+remainder:
+
+- **The hub actually starts.** The section has been titled "npm → init → hub →
+  MCP" since it was written and never made an HTTP request. It now serves
+  `/widget.js`, `/queue`, the hashed dashboard assets (read out of the served
+  shell, so they cannot go stale), and `POST /ingest`, asserting on CONTENT —
+  a stub `widget.js` answers 200 with perfectly valid empty JavaScript, so only
+  content can catch a `files`-whitelist miss. Canaried by stubbing the widget
+  inside the installed tree: `200, 7 B`, exactly one check red.
+- **The plugin channel is fetched from GitHub**, the ref adopters actually
+  clone — previously the only channel read from the developer's own tree.
+- **The registry listing is launched, not just compared.** `Package.transport`
+  is `anyOf(stdio|streamable-http|sse)`, so a wrong transport is schema-VALID
+  and `mcp-publisher validate` cannot reject it.
+- **The documented npx onboarding path** is exercised against the published
+  package, not just the local-bin variant.
+- **All nine files `init` writes** are checked, not the five the loop carried
+  under a comment claiming it covered every one.
+- **Diagnostics:** the child's stderr is captured and the line that *names* the
+  failure is preferred over a blind tail (which was returning `code: '` from a
+  serialised Error). The cold handshake is guarded, so a dead install is one red
+  check instead of a lost run that skipped two whole channels.
+
+Sweep is 20. Two of these were caught being decorative by their own canaries
+before landing — a port-collision mutation that fell through to a branch whose
+message still matched, and a collision probe pointed at a `0.0.0.0` hub from a
+`127.0.0.1` client, which never collided at all.
+
 ## [0.9.2] — 2026-08-02
 
 Ships the `init` fix below to adopters. 0.9.1 still writes a git-clone MCP

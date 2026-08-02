@@ -182,6 +182,21 @@ const CASES = [
       ),
   },
   {
+    gate: "e2e (port collision is loud)",
+    cmd: ["npm", ["run", "-s", "e2e"]],
+    build: BUILD,
+    guards: "the hub refusing to exit 0 when its port is taken",
+    apply: () =>
+      // Neutralise the EXIT, which is the actual subject. A first version
+      // flipped the EADDRINUSE branch to `if (false)`, but the generic fallback
+      // prints err.message — "listen EADDRINUSE: address already in use …" —
+      // which still satisfies the /already in use/ assertion. The sweep caught
+      // that mutation as decorative, which is precisely its job.
+      mutate("src/index.ts", (s) =>
+        s.replace("      process.exit(1);\n    });\n    return;", "      return;\n    });\n    return;"),
+      ),
+  },
+  {
     gate: "init-gate (adopter install source)",
     cmd: ["node", ["scripts/init-gate.mjs"]],
     build: BUILD,

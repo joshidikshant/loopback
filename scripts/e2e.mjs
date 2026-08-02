@@ -13,7 +13,7 @@
  * Run: node scripts/e2e.mjs
  */
 import { pathToFileURL } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -854,6 +854,53 @@ async function main() {
   rmSync(`${AUTH_DB}-wal`, { force: true });
   rmSync(`${AUTH_DB}-shm`, { force: true });
   console.log("✅ LAN bind: intake and pins open by design, everything else requires the token");
+
+  // ---------- 9. a taken port fails LOUD ----------
+  // Measured before this was fixed: a second `--http --port <taken>` printed the
+  // success banner and exited 0, having served nothing. express's listen
+  // callback still fires (with address() === null) and an unhandled 'error' on
+  // the underlying server is not a throw. Silence on a port collision is the
+  // worst outcome for a tool people habitually start in a second terminal.
+  //
+  // Collide against a hub THIS block starts on an explicit host+port. A first
+  // version reused the LAN-auth hub's port, which binds 0.0.0.0 while the probe
+  // binds 127.0.0.1 — no collision, and the check would have proved nothing.
+  // Its guard caught that, and this is the deterministic replacement.
+  const COLLIDE_PORT = LB_PORT + 4;
+  const COLLIDE_DB = join(tmpdir(), `loopback-e2e-collide-${process.pid}.db`);
+  start("node", [join(ROOT, "dist", "index.js"), "--http", "--port", String(COLLIDE_PORT), "--host", "127.0.0.1"], {
+    LOOPBACK_DB: COLLIDE_DB,
+  });
+  await waitFor(`http://127.0.0.1:${COLLIDE_PORT}/health`);
+
+  const collision = spawnSync(
+    "node",
+    [join(ROOT, "dist", "index.js"), "--http", "--port", String(COLLIDE_PORT), "--host", "127.0.0.1"],
+    {
+      encoding: "utf-8",
+      // Not belt-and-braces: were the port somehow free, the hub would serve
+      // forever and spawnSync would never return — hanging the run instead of
+      // failing it. It hung exactly that way once, before this line existed.
+      timeout: 15_000,
+      killSignal: "SIGKILL",
+      env: { ...process.env, LOOPBACK_DB: join(tmpdir(), `loopback-e2e-collide2-${process.pid}.db`) },
+    },
+  );
+  assert(
+    collision.signal !== "SIGKILL",
+    "the collision probe exited on its own — a hub that kept running means the port was free and this check proved nothing",
+  );
+  assert(collision.status === 1, `a taken port exits non-zero (got ${collision.status})`);
+  assert(
+    /already in use/i.test(collision.stderr),
+    `and says so, with the remedy (stderr: ${collision.stderr.split("\n").filter(Boolean).slice(-2).join(" | ").slice(0, 120)})`,
+  );
+  assert(
+    !/on http:\/\/.*\/mcp/.test(collision.stderr),
+    "and does NOT print a success banner it is about to contradict",
+  );
+  rmSync(COLLIDE_DB, { force: true });
+  console.log("✅ port collision: exits 1, names the port, no misleading banner");
 
   console.log("\nFULL-LOOP E2E PASSED 🎉  human pin → bus → agent fix → visible closure → human triage");
 }

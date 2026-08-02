@@ -89,7 +89,11 @@ async function main(): Promise<void> {
       ? undefined
       : (process.env.LOOPBACK_TOKEN ?? randomBytes(24).toString("hex"));
     const app = createHttpApp(() => buildServer(store), store, { host, port, token });
-    app.listen(port, host, () => {
+    const httpServer = app.listen(port, host, () => {
+      // The callback fires even when the bind FAILED, with address() === null,
+      // so an unguarded banner announced a healthy server moments before the
+      // error handler below exited 1 — the two lines contradicted each other.
+      if (httpServer.address() === null) return;
       console.error(
         `loopback-mcp-server v${SERVER_VERSION} on http://${host}:${port}/mcp  (db: ${dbPath})`,
       );
@@ -108,6 +112,24 @@ async function main(): Promise<void> {
             `Intended for device testing on trusted networks only; put a token-gated reverse proxy in front for anything more.`,
         );
       }
+    });
+    // Without this the process exits 0 on a taken port, having printed its
+    // success banner and served nothing: express's listen callback still fires
+    // (with address() === null), and an unhandled 'error' on the underlying
+    // server is not a throw. Measured — a second `--http --port 7077` looked
+    // exactly like a clean start. Silence on a port collision is the worst
+    // outcome for a tool people run in a second terminal.
+    httpServer.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(
+          `Port ${port} is already in use — another Loopback (or something else) is on it.\n` +
+            `  Use a different port:  loopback-mcp-server --http --port ${port + 1}\n` +
+            `  Or find the process :  lsof -i :${port}`,
+        );
+      } else {
+        console.error(`Could not listen on ${host}:${port} — ${err.message}`);
+      }
+      process.exit(1);
     });
     return;
   }
