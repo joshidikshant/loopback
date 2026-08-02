@@ -119,7 +119,7 @@ manifests that do different jobs — `registry.json` for shadcn, `server.json`
 for the MCP Registry. Also corrected the widget size, still quoted as
 46KB/15KB against a measured 57KB/19KB.
 
-## [0.9.1] — 2026-07-27 — published to npm and the MCP Registry
+## [0.9.1] — 2026-08-01 — published to npm; listed on the MCP Registry 2026-08-02
 
 ### Added — MCP Registry identity (`mcpName` + `server.json`)
 The official MCP Registry proves package ownership by fetching the **published**

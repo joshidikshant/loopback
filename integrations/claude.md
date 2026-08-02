@@ -12,7 +12,7 @@ machine (recommended) or per project.
 ```bash
 # local checkout (fast startup):
 claude mcp add --scope user loopback -- node /ABS/PATH/loopback/dist/index.js
-# or zero-install from GitHub:
+# or zero-install from npm:
 claude mcp add --scope user loopback -- npx -y loopback-mcp-server
 ```
 
