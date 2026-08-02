@@ -6,19 +6,24 @@ audit arc that took the suite from 11/20 to 20/20 — lives in the
 
 ## Open
 
-**CI on `main` has been red since 2026-07-27** — 16 consecutive `ci.yml`
-failures, last green `623aa05` on 2026-07-26 — and 0.9.0, 0.9.1 and 0.9.2 were
-all published on top of it. This branch fixes the failing check and makes the
-release preflight refuse a commit whose CI is not green, so a red `main` stops
-being publishable.
+**The MCP Registry listing is one version behind.** 0.9.3 is on npm; the
+registry still resolves to 0.9.2 because `mcp-publisher`'s token had expired at
+release time. `mcp-publisher login` then `mcp-publisher publish` closes it, and
+`npm run verify:release` is what reports the gap.
 
-Distribution itself is complete end to end:
+Resolved in 0.9.3: `main` had been red for 16 consecutive `ci.yml` runs from
+2026-07-27 (last green `623aa05`), with 0.9.0, 0.9.1 and 0.9.2 all published on
+top of it. The failing check is fixed and `release-preflight` now refuses a
+commit that is not green, pushed and tagged — so a red `main` is no longer
+publishable.
+
+Distribution is complete end to end:
 
 | Surface | State |
 |---|---|
-| GitHub | [joshidikshant/loopback](https://github.com/joshidikshant/loopback) |
-| npm | `loopback-mcp-server@0.9.2` — cold-verified from the registry |
-| MCP Registry | `io.github.joshidikshant/loopback` — status `active` |
+| GitHub | [joshidikshant/loopback](https://github.com/joshidikshant/loopback) — tagged and released v0.9.0–v0.9.3 |
+| npm | `loopback-mcp-server@0.9.3` — cold-verified from the registry |
+| MCP Registry | `io.github.joshidikshant/loopback` — status `active`, **listing at 0.9.2** |
 
 Every P1–P3 shipped or moved to Deliberate with a measured rationale. What the
 project needs next is not code: it is an adopter who is not DJ.
