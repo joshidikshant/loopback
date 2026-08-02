@@ -294,6 +294,40 @@ for (const dir of [fresh, seeded, subset]) rmSync(dir, { recursive: true, force:
     "plugin/skills/loopback/SKILL.md matches the canonical template (the plugin ships its own copy)",
   );
 
+  // There are TWO self-declared canonical sources, and every check above runs
+  // from one of them down to its renderings. Nothing compared them to EACH
+  // OTHER — instructions-src.md says the skill body "mirrors this text and must
+  // be updated with it", and that sync was purely manual. It is the one drift
+  // class in this repo with no automated check.
+  //
+  // They are not byte-identical by design (the skill carries frontmatter and
+  // resolves its own project slug, the playbook gets {{PROJECT}} substituted),
+  // so the invariant is the loop itself: both must drive the same tools in the
+  // same order. Adding a step to one and not the other is the failure that
+  // matters — an agent reading the skill would work a different loop than one
+  // reading AGENTS.md.
+  const instructionsSrc = readFileSync(join(process.cwd(), "integrations", "instructions-src.md"), "utf-8");
+  const playbook = instructionsSrc.split("<!-- playbook:begin -->")[1]?.split("<!-- playbook:end -->")[0];
+  const loopTools = (text, heading) => {
+    const m = new RegExp(`${heading}\\n(.*?)(?=\\n#{2,3} )`, "s").exec(text);
+    if (!m) return null;
+    return [...new Set(m[1].match(/loopback_[a-z_]+/g) ?? [])];
+  };
+  const srcLoop = playbook ? loopTools(playbook, "### The loop") : null;
+  const skillLoop = loopTools(canonical, "## The loop");
+  assert(
+    srcLoop !== null && skillLoop !== null,
+    "both canonical sources still have a parseable 'The loop' section",
+  );
+  assert(
+    JSON.stringify(srcLoop) === JSON.stringify(skillLoop),
+    `the two canonical sources drive the same loop in the same order${
+      srcLoop && skillLoop && JSON.stringify(srcLoop) !== JSON.stringify(skillLoop)
+        ? `\n     instructions-src: ${srcLoop.join(" → ")}\n     SKILL.md:         ${skillLoop.join(" → ")}`
+        : ""
+    }`,
+  );
+
   // Three version fields the npm release does not touch, so they rot silently:
   // both were still 0.8.0 two published releases later.
   const pkgVersion = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf-8")).version;
