@@ -15,6 +15,13 @@ const LOOPBACK = process.env.LOOPBACK_ENDPOINT || "http://127.0.0.1:7077";
 
 const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/api/contact") {
+    // "Migration applied": DEMO_FIXED=1 closes the seeded bug so the whole
+    // loop (pin → fix → verify → green) can complete against a real change.
+    if (process.env.DEMO_FIXED === "1") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
     // The bug an agent should find: backend rejects valid input.
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(
