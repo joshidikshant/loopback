@@ -424,10 +424,15 @@ export function ItemDetail({
           </time>
         </Section>
         <Section label="Updated">
-          {/* An ISO timestamp is one 24-char token with no break opportunity, so
-              at 200% zoom it sets a 236px floor that min-w-0 cannot shrink —
-              the same break-all every other value in this card already carries. */}
-          <span className="text-sm break-all text-muted-foreground">{item.updated_at}</span>
+          {/* Rendered like Age above, and for the same reason it has to be: a raw
+              ISO string is one 24-char token with no break opportunity, so it set
+              a 236px floor that min-w-0 could not shrink and pushed the page over
+              320px at 200% zoom. break-all cleared that but split the timestamp
+              mid-number at desktop width. Humanising it removes the long token
+              instead of breaking it; the exact value stays in title/dateTime. */}
+          <time dateTime={item.updated_at} className="text-sm text-muted-foreground" title={item.updated_at}>
+            {age(item.updated_at)}
+          </time>
         </Section>
         {item.resolution && (
           <Section label="Resolution">
