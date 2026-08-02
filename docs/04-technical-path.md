@@ -2,6 +2,13 @@
 
 *Companion to the build-vs-borrow memo. This is the concrete "how": what to install, what was built, and the exact wiring. The Loopback Phase-0 server described here is **already built and passing its end-to-end tests** — see the attached zip.*
 
+> **Historical, written 2026-07-20.** "The attached zip" was the v0.2.0 kickoff
+> archive; its contents are the Loopback product repo's first commit,
+> `b9d1567`. Every figure below describes that Phase-0 snapshot — 9 tools, no
+> dashboard, no auth on the HTTP surface, SDK v1.29 — and none of it is
+> current: the shipped product has ten tools, a dashboard, and a bearer token on
+> non-loopback binds. For what is true today, read the product repo's README.
+
 ---
 
 ## 1. The path in one picture
