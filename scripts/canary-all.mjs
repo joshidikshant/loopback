@@ -61,7 +61,15 @@ function run([bin, args]) {
   }
 }
 
-/** Each entry: the gate, one mutation to what it guards, and any build it needs. */
+/**
+ * Each entry: the gate, one mutation to what it guards, and any build it needs.
+ *
+ * A few gates take their broken subject as INPUT rather than from a file — the
+ * release preflight reads a commit's CI result, so its "mutation" is being
+ * pointed at a commit that really is red. Those cases carry `expect` and no
+ * file mutation; `expect: 0` asserts the complement, which a fail-closed gate
+ * needs: a gate that refuses everything would otherwise pass its own canary.
+ */
 const CASES = [
   {
     gate: "impeccable-gate",
@@ -258,6 +266,22 @@ const CASES = [
         s.replaceAll("${a.name}", "FILE").replaceAll("${a.path}", "PATH"),
       ),
   },
+  // 10a1c6d is permanently red (the a11y reflow failure) and 623aa05 is
+  // permanently green. Both are immutable history, so these two anchors cannot
+  // rot the way a mutation's anchor text can.
+  {
+    gate: "release-preflight (red CI)",
+    cmd: ["node", ["scripts/release-preflight.mjs", "--sha", "10a1c6d6544aae6bd27416cf5c7aec6125406078"]],
+    guards: "the CI result of the commit being published",
+    apply: () => {},
+  },
+  {
+    gate: "release-preflight (green CI)",
+    cmd: ["node", ["scripts/release-preflight.mjs", "--sha", "623aa05a2d75e4bbeffcc5cfde903babc2a332d7"]],
+    guards: "a green commit still being publishable",
+    expect: 0,
+    apply: () => {},
+  },
 ];
 
 process.on("SIGINT", () => {
@@ -276,7 +300,17 @@ try {
         );
         continue;
       }
-      if (run(c.cmd) !== 0) {
+      const code = run(c.cmd);
+      if (c.expect === 0) {
+        if (code === 0) {
+          console.log(`✅ ${c.gate} still passes on ${c.guards}`);
+        } else {
+          failures++;
+          console.error(
+            `❌ ${c.gate} FAILED on ${c.guards} — it refuses everything, so its red-case canary proves nothing`,
+          );
+        }
+      } else if (code !== 0) {
         console.log(`✅ ${c.gate} fails when ${c.guards} is broken`);
       } else {
         failures++;
