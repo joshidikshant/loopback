@@ -83,8 +83,10 @@ console.log(`
 Next:
   npm run build && npm run smoke && node scripts/init-gate.mjs   # parity gates
   git commit && git push                                          # push BEFORE publishing
-  # …then WAIT for CI to go green on that commit. npm publish now runs
-  # release-preflight first and refuses a red or still-running commit.
+  git tag -a v${NEXT} -m "v${NEXT}" && git push origin v${NEXT}
+  # …then WAIT for CI to go green on that commit. npm publish runs
+  # release-preflight first and refuses a commit that is red, still running,
+  # unpushed, or untagged.
   npm publish --otp=<code>
   mcp-publisher publish
   npm run verify:release
